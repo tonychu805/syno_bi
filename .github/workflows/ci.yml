@@ -62,29 +62,22 @@ jobs:
           if [ -n "${SUPABASE_HOST:-}" ]; then
             cp dbt/profiles.yml.example "$HOME/.dbt/profiles.yml"
           else
-            python - <<'PYTHON'
-import os
-from pathlib import Path
-
-profiles_yaml = """synology_bi:
-  target: ci
-  outputs:
-    ci:
-      type: postgres
-      host: localhost
-      port: 5432
-      user: postgres
-      password: postgres
-      dbname: postgres
-      schema: analytics
-      threads: 2
-      keepalives_idle: 60
-      sslmode: disable
-"""
-
-profiles_path = Path(os.path.expanduser("~/.dbt/profiles.yml"))
-profiles_path.write_text(profiles_yaml, encoding="utf-8")
-PYTHON
+            printf '%s\n' \
+              'synology_bi:' \
+              '  target: ci' \
+              '  outputs:' \
+              '    ci:' \
+              '      type: postgres' \
+              '      host: localhost' \
+              '      port: 5432' \
+              '      user: postgres' \
+              '      password: postgres' \
+              '      dbname: postgres' \
+              '      schema: analytics' \
+              '      threads: 2' \
+              '      keepalives_idle: 60' \
+              '      sslmode: disable' \
+              > "$HOME/.dbt/profiles.yml"
           fi
 
       - name: Launch temporary Postgres
