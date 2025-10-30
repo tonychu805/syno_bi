@@ -85,7 +85,7 @@ services:
     command: sleep infinity
 
   n8n:
-    image: n8nio/n8n:1.36
+    image: n8nio/n8n:latest
     container_name: n8n
     env_file:
       - ./env/n8n.env
