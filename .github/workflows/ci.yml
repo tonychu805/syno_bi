@@ -132,7 +132,8 @@ jobs:
           NAS_PROJECT_PATH: ${{ secrets.NAS_PROJECT_PATH }}
         run: |
           ssh -p "$NAS_SSH_PORT" "$NAS_USER@$NAS_HOST" \
-            "cd ${NAS_PROJECT_PATH:-/volume1/docker/syno_bi/repo} && \
+            "export PATH=/usr/local/bin:\\$PATH && \
+             cd ${NAS_PROJECT_PATH:-/volume1/docker/syno_bi/repo} && \
              git fetch origin main && \
              git checkout main && \
              git pull origin main && \
