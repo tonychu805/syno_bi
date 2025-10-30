@@ -10,9 +10,10 @@ __pycache__/
 # Virtual environments & local env files
 .venv/
 venv/
-env/
 .env
 *.env
+env/*.env
+!env/*.env.example
 
 # dbt build outputs
 dbt/profiles.yml
@@ -36,5 +37,3 @@ htmlcov/
 
 
 # Others
-# Runtime compose overrides (keep infra/docker-compose.yml tracked)
-docker-compose.yml

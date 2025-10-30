@@ -20,28 +20,25 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 ```
 /volume1/docker/syno_bi/
 ├── repo/                    # Git checkout of syno_prediction
+│   ├── docker-compose.yml   # Uses ./env/*.env for secrets
+│   ├── env/
+│   │   ├── airflow.env      # Airflow-specific environment variables
+│   │   ├── dbt.env          # dbt runner variables (Supabase creds)
+│   │   ├── metabase.env     # Metabase application configuration
+│   │   └── n8n.env          # Webhook secrets, Metabase API tokens
+│   ├── infra/
+│   │   ├── airflow/
+│   │   │   ├── logs/
+│   │   │   └── plugins/
+│   │   ├── metabase/data/
+│   │   ├── n8n/data/
+│   │   └── postgres/
+│   │       ├── data/
+│   │       └── init/
 │   ├── dags/
 │   ├── dbt/
-│   ├── documents/
-│   ├── infra/
-│   ├── env/
-│   │   ├── airflow.env          # Airflow-specific environment variables
-│   │   ├── dbt.env              # dbt runner variables (Supabase creds, profiles dir)
-│   │   ├── metabase.env         # Metabase application configuration (metastore DB)
-│   │   └── n8n.env              # Webhook secrets, Metabase API tokens
-│   └── docker-compose.yml (optional runtime copy)
-├── infra/
-│   └── docker-compose.yml (runtime compose file using ./env/*.env)
-├── airflow/
-│   ├── dags/                # Mounted from repo `dags/`
-│   ├── logs/                # Persisted Airflow logs
-│   └── plugins/             # Optional custom operators
-├── dbt/
-│   ├── project/             # Mounted from repo `dbt/`
-│   └── target/              # dbt compilation targets
-├── n8n/
-│   └── data/                # Workflow state and credentials
-└── docker-compose.yml       # Deployed compose file (copied from repo/infra)
+│   └── documents/
+└── docker-compose.yml       # Optional runtime copy (mirrors repo version)
 ```
 
 ## Environment Variables
@@ -55,10 +52,10 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 ## Deployment Steps
 1. **Prep NAS**: Install Docker package, enable SSH, and allocate storage volume under `/volume1/docker/syno_bi`.
 2. **Check Out Repo**: Clone `syno_prediction` to `/volume1/docker/syno_bi/repo` or use Synology Git Server.
-3. **Populate Configs**: Copy `dbt/profiles.yml.example` to `dbt/profiles.yml`, fill Supabase credentials, and copy `infra/env/*.env.example` into `repo/env/`, replacing every `CHANGE_ME`. Ensure `infra/postgres/init/create_metabase.sql` matches the Metabase database password (`MB_DB_PASS`).
-4. **Author Compose File**: Create `docker-compose.yml` (minimum services shown below) then validate with `docker compose config`.
-5. **Bootstrap Airflow**: From `repo/infra/`, run `docker compose up airflow-init` to initialize metadata DB and admin user accounts.
-6. **Start Stack**: From `repo/infra/`, run `docker compose up -d` (Airflow scheduler/webserver/worker, dbt runner, n8n, Metabase). Confirm health via UI and logs.
+3. **Populate Configs**: Copy `dbt/profiles.yml.example` to `dbt/profiles.yml`, fill Supabase credentials, and copy `env/*.env.example` to `env/*.env`, replacing every `CHANGE_ME`. Ensure `infra/postgres/init/create_metabase.sql` matches the Metabase database password (`MB_DB_PASS`).
+4. **Author Compose File**: Use the repo root `docker-compose.yml` (minimum services shown below) and validate with `docker compose config`.
+5. **Bootstrap Airflow**: `cd /volume1/docker/syno_bi/repo && docker compose up airflow-init` to initialize metadata DB and admin user accounts.
+6. **Start Stack**: From the same directory, run `docker compose up -d` (Airflow scheduler/webserver/worker, dbt runner, n8n, Metabase). Confirm health via UI and logs.
 7. **Register Connections**: In Airflow UI, configure Supabase connections and store Metabase API credentials (if refreshes are triggered via API); import n8n workflows pointing to Airflow webhooks if needed.
 8. **Schedule DAG**: Verify `synology_bi_pipeline` loads, update schedule/params as required, and trigger a dry run.
 
@@ -77,20 +74,6 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 version: "3.9"
 
 services:
-  airflow-scheduler:
-    image: apache/airflow:2.8.1-python3.11
-    env_file:
-      - ./env/airflow.env
-    depends_on:
-      - airflow-webserver
-      - postgres
-      - redis
-    volumes:
-      - ./repo/dags:/opt/airflow/dags
-      - ./repo/dbt:/opt/airflow/dbt
-      - ./airflow/logs:/opt/airflow/logs
-    command: scheduler
-
   airflow-webserver:
     image: apache/airflow:2.8.1-python3.11
     env_file:
@@ -98,17 +81,22 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./repo/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
+      - ./dags:/opt/airflow/dags
+      - ./dbt:/opt/airflow/dbt
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
     command: webserver
+    depends_on:
+      - postgres
+      - redis
 
   dbt-runner:
     image: ghcr.io/dbt-labs/dbt-postgres:1.7.11
     env_file:
       - ./env/dbt.env
     volumes:
-      - ./repo/dbt:/usr/app/dbt
-    entrypoint: ["sleep", "infinity"]
+      - ./dbt:/usr/app/dbt
+    command: sleep infinity
 
   n8n:
     image: n8nio/n8n:1.36
@@ -117,7 +105,7 @@ services:
     ports:
       - "5678:5678"
     volumes:
-      - ./n8n/data:/home/node/.n8n
+      - ./infra/n8n/data:/home/node/.n8n
 
   metabase:
     image: metabase/metabase:v0.49.14
@@ -126,7 +114,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./metabase/data:/metabase-data
+      - ./infra/metabase/data:/metabase-data
     depends_on:
       - postgres
 
@@ -137,8 +125,8 @@ services:
       POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
       POSTGRES_DB: airflow
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init:/docker-entrypoint-initdb.d
+      - ./infra/postgres/data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d
 
   redis:
     image: redis:7-alpine

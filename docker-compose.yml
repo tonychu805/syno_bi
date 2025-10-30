@@ -5,14 +5,14 @@ services:
     image: apache/airflow:2.8.1-python3.11
     container_name: airflow-webserver
     env_file:
-      - ../env/airflow.env
+      - ./env/airflow.env
     ports:
       - "8080:8080"
     volumes:
-      - ../dags:/opt/airflow/dags
-      - ../dbt:/opt/airflow/dbt
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
+      - ./dags:/opt/airflow/dags
+      - ./dbt:/opt/airflow/dbt
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
     command: webserver
     depends_on:
       - postgres
@@ -22,12 +22,12 @@ services:
     image: apache/airflow:2.8.1-python3.11
     container_name: airflow-scheduler
     env_file:
-      - ../env/airflow.env
+      - ./env/airflow.env
     volumes:
-      - ../dags:/opt/airflow/dags
-      - ../dbt:/opt/airflow/dbt
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
+      - ./dags:/opt/airflow/dags
+      - ./dbt:/opt/airflow/dbt
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
     command: scheduler
     depends_on:
       - airflow-webserver
@@ -38,12 +38,12 @@ services:
     image: apache/airflow:2.8.1-python3.11
     container_name: airflow-triggerer
     env_file:
-      - ../env/airflow.env
+      - ./env/airflow.env
     volumes:
-      - ../dags:/opt/airflow/dags
-      - ../dbt:/opt/airflow/dbt
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
+      - ./dags:/opt/airflow/dags
+      - ./dbt:/opt/airflow/dbt
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
     command: triggerer
     depends_on:
       - airflow-webserver
@@ -54,7 +54,7 @@ services:
     image: apache/airflow:2.8.1-python3.11
     container_name: airflow-init
     env_file:
-      - ../env/airflow.env
+      - ./env/airflow.env
     entrypoint: /bin/bash
     command:
       - -c
@@ -68,9 +68,9 @@ services:
           --email "$${AIRFLOW_ADMIN_EMAIL:-admin@example.com}" \
           --password "$${AIRFLOW_ADMIN_PASSWORD:-admin}"
     volumes:
-      - ../dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
+      - ./dags:/opt/airflow/dags
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
     depends_on:
       - postgres
       - redis
@@ -79,30 +79,30 @@ services:
     image: ghcr.io/dbt-labs/dbt-postgres:1.7.11
     container_name: dbt-runner
     env_file:
-      - ../env/dbt.env
+      - ./env/dbt.env
     volumes:
-      - ../dbt:/usr/app/dbt
+      - ./dbt:/usr/app/dbt
     command: sleep infinity
 
   n8n:
     image: n8nio/n8n:1.36
     container_name: n8n
     env_file:
-      - ../env/n8n.env
+      - ./env/n8n.env
     ports:
       - "5678:5678"
     volumes:
-      - ./n8n/data:/home/node/.n8n
+      - ./infra/n8n/data:/home/node/.n8n
 
   metabase:
     image: metabase/metabase:v0.49.14
     container_name: metabase
     env_file:
-      - ../env/metabase.env
+      - ./env/metabase.env
     ports:
       - "3000:3000"
     volumes:
-      - ./metabase/data:/metabase-data
+      - ./infra/metabase/data:/metabase-data
     depends_on:
       - postgres
 
@@ -114,16 +114,10 @@ services:
       POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD:-airflow}
       POSTGRES_DB: airflow
     volumes:
-      - ./postgres/data:/var/lib/postgresql/data
-      - ./postgres/init:/docker-entrypoint-initdb.d
+      - ./infra/postgres/data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d
 
   redis:
     image: redis:7-alpine
     container_name: airflow-redis
     command: redis-server --save "" --appendonly no
-
-volumes:
-  airflow-logs:
-  airflow-plugins:
-  n8n-data:
-  postgres-data:
