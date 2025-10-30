@@ -99,6 +99,7 @@ services:
     container_name: metabase
     env_file:
       - ./env/metabase.env
+    network_mode: host
     ports:
       - "3000:3000"
     volumes:
