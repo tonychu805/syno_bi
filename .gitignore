@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments & local env files
+.venv/
+venv/
+env/
+.env
+*.env
+
+# dbt build outputs
+dbt/profiles.yml
+dbt/target/
+dbt/dbt_packages/
+
+# Airflow runtime directories
+airflow/
+logs/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# Editors
+.vscode/
+.idea/

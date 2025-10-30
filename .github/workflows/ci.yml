@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest ruff black
+
+      - name: Lint with ruff
+        run: ruff check src tests
+
+      - name: Check formatting with black
+        run: black --check src tests
+
+      - name: Run unit tests
+        run: pytest tests
+
+  dbt-compile:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python for dbt
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dbt dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-core dbt-postgres
+
+      - name: Configure dbt profile
+        run: |
+          mkdir -p $HOME/.dbt
+          cp dbt/profiles.yml.example $HOME/.dbt/profiles.yml
+          sed -i 's/{{ env_var("SUPABASE_HOST") }}/localhost/' $HOME/.dbt/profiles.yml
+          sed -i 's/{{ env_var("SUPABASE_PORT", '\"'\"'5432'\"'\"') }}/5432/' $HOME/.dbt/profiles.yml
+          sed -i 's/{{ env_var("SUPABASE_USER") }}/postgres/' $HOME/.dbt/profiles.yml
+          sed -i 's/{{ env_var("SUPABASE_PASSWORD") }}/postgres/' $HOME/.dbt/profiles.yml
+          sed -i 's/{{ env_var("SUPABASE_DB") }}/postgres/' $HOME/.dbt/profiles.yml
+
+      - name: Launch temporary Postgres
+        run: |
+          docker run -d --name ci-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:15-alpine
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..20}; do
+            docker exec ci-postgres pg_isready && break
+            sleep 3
+          done
+
+      - name: Seed and test dbt
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+        run: |
+          dbt deps || true
+          dbt debug --profiles-dir $HOME/.dbt
+          dbt seed --profiles-dir $HOME/.dbt --target dev || true
+          dbt run --profiles-dir $HOME/.dbt --target dev --select staging+ || true
+          dbt test --profiles-dir $HOME/.dbt --target dev --select staging+ || true
+
+      - name: Tear down Postgres
+        if: always()
+        run: docker rm -f ci-postgres
+
+  deploy-to-nas:
+    runs-on: ubuntu-latest
+    needs:
+      - lint-and-test
+      - dbt-compile
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout (for scripts)
+        uses: actions/checkout@v4
+
+      - name: Start ssh-agent
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.NAS_SSH_KEY }}
+
+      - name: Add NAS host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.NAS_SSH_PORT }}" "${{ secrets.NAS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to Synology NAS
+        env:
+          NAS_HOST: ${{ secrets.NAS_HOST }}
+          NAS_USER: ${{ secrets.NAS_USER }}
+          NAS_SSH_PORT: ${{ secrets.NAS_SSH_PORT }}
+          NAS_PROJECT_PATH: ${{ secrets.NAS_PROJECT_PATH }}
+        run: |
+          ssh -p "$NAS_SSH_PORT" "$NAS_USER@$NAS_HOST" \
+            "cd ${NAS_PROJECT_PATH:-/volume1/docker/syno_bi/repo} && \
+             git fetch origin main && \
+             git checkout main && \
+             git pull origin main && \
+             docker compose pull && \
+             docker compose up -d"

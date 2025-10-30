@@ -1,0 +1,32 @@
+# dbt project configuration for the Synology BI platform
+name: "synology_bi"
+version: "1.0.0"
+config-version: 2
+
+profile: "synology_bi"
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+analysis-paths: ["analysis"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  synology_bi:
+    +materialized: view
+    staging:
+      +schema: staging
+      +tags: ["staging"]
+    marts:
+      +schema: marts
+      +tags: ["marts"]
+
+seeds:
+  synology_bi:
+    +schema: seeds

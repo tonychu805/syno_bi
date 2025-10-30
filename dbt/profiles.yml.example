@@ -1,0 +1,14 @@
+# Example dbt profile for connecting to Supabase (PostgreSQL)
+synology_bi:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('SUPABASE_HOST') }}"
+      port: "{{ env_var('SUPABASE_PORT', '5432') }}"
+      user: "{{ env_var('SUPABASE_USER') }}"
+      password: "{{ env_var('SUPABASE_PASSWORD') }}"
+      dbname: "{{ env_var('SUPABASE_DB') }}"
+      schema: "analytics"
+      threads: 4
+      keepalives_idle: 60
