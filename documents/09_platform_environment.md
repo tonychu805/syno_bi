@@ -30,6 +30,8 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 │   │   ├── metabase.env         # Metabase application configuration (metastore DB)
 │   │   └── n8n.env              # Webhook secrets, Metabase API tokens
 │   └── docker-compose.yml (optional runtime copy)
+├── infra/
+│   └── docker-compose.yml (runtime compose file using ./env/*.env)
 ├── airflow/
 │   ├── dags/                # Mounted from repo `dags/`
 │   ├── logs/                # Persisted Airflow logs

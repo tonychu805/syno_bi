@@ -36,4 +36,5 @@ htmlcov/
 
 
 # Others
+# Runtime compose overrides (keep infra/docker-compose.yml tracked)
 docker-compose.yml
