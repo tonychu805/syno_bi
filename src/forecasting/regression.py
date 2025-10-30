@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 def _processed_dir() -> Path:
-    repo_root = Path(os.environ.get("SYNOBI_REPO_ROOT", Path(__file__).resolve().parents[2]))
+    repo_root = Path(
+        os.environ.get("SYNOBI_REPO_ROOT", Path(__file__).resolve().parents[2])
+    )
     return repo_root / "data" / "processed"
 
 
@@ -33,10 +35,28 @@ def _load_sales_history(files: Iterable[Path]) -> pd.DataFrame:
 
         channel = "IM" if "im_" in path.stem else "TDBS"
         frame = frame.copy()
-        date_col = next((col for col in ("Month", "Date", "Transaction Date") if col in frame.columns), None)
-        sku_col = next((col for col in ("Product", "SKU", "Sku") if col in frame.columns), None)
-        qty_col = next((col for col in ("Received Qty", "Quantity", "Qty") if col in frame.columns), None)
-        revenue_col = next((col for col in ("Total", "Revenue") if col in frame.columns), None)
+        date_col = next(
+            (
+                col
+                for col in ("Month", "Date", "Transaction Date")
+                if col in frame.columns
+            ),
+            None,
+        )
+        sku_col = next(
+            (col for col in ("Product", "SKU", "Sku") if col in frame.columns), None
+        )
+        qty_col = next(
+            (
+                col
+                for col in ("Received Qty", "Quantity", "Qty")
+                if col in frame.columns
+            ),
+            None,
+        )
+        revenue_col = next(
+            (col for col in ("Total", "Revenue") if col in frame.columns), None
+        )
 
         if not all([date_col, sku_col, qty_col]):
             logger.warning("Skipping %s; missing expected columns.", path.name)
@@ -47,7 +67,9 @@ def _load_sales_history(files: Iterable[Path]) -> pd.DataFrame:
         frame["channel"] = channel
         frame["quantity"] = pd.to_numeric(frame[qty_col], errors="coerce").fillna(0.0)
         frame["revenue"] = (
-            pd.to_numeric(frame[revenue_col], errors="coerce").fillna(0.0) if revenue_col else 0.0
+            pd.to_numeric(frame[revenue_col], errors="coerce").fillna(0.0)
+            if revenue_col
+            else 0.0
         )
 
         frames.append(frame[["sale_date", "sku", "channel", "quantity", "revenue"]])
@@ -68,12 +90,12 @@ def _create_forecast_baseline(sales_history: pd.DataFrame) -> pd.DataFrame:
         .sort_values("sale_date")
     )
 
-    grouped["rolling_quantity"] = (
-        grouped.groupby(["sku", "channel"])["quantity"].transform(lambda s: s.rolling(window=3, min_periods=1).mean())
-    )
-    grouped["rolling_revenue"] = (
-        grouped.groupby(["sku", "channel"])["revenue"].transform(lambda s: s.rolling(window=3, min_periods=1).mean())
-    )
+    grouped["rolling_quantity"] = grouped.groupby(["sku", "channel"])[
+        "quantity"
+    ].transform(lambda s: s.rolling(window=3, min_periods=1).mean())
+    grouped["rolling_revenue"] = grouped.groupby(["sku", "channel"])[
+        "revenue"
+    ].transform(lambda s: s.rolling(window=3, min_periods=1).mean())
 
     forecasts = []
     for (sku, channel), history in grouped.groupby(["sku", "channel"]):

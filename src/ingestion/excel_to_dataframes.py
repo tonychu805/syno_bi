@@ -4,6 +4,7 @@ This module focuses on reading the source workbook under ``raw/`` and storing ea
 worksheet as a serialized pandas DataFrame so downstream jobs can pick them up
 without mutating the original inputs.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +29,9 @@ def sanitize_sheet_name(sheet_name: str) -> str:
     return cleaned.lower() or "worksheet"
 
 
-def load_excel_tabs(excel_path: Path, *, engine: str | None = None) -> Dict[str, pd.DataFrame]:
+def load_excel_tabs(
+    excel_path: Path, *, engine: str | None = None
+) -> Dict[str, pd.DataFrame]:
     """Load every worksheet in ``excel_path`` into memory."""
     if not excel_path.exists():
         raise FileNotFoundError(f"Excel workbook not found: {excel_path}")
@@ -58,7 +61,9 @@ def save_dataframes(
     for sheet_name, frame in frames.items():
         base_filename = sanitize_sheet_name(sheet_name)
         occurrence = name_counts.get(base_filename, 0)
-        filename = base_filename if occurrence == 0 else f"{base_filename}_{occurrence + 1}"
+        filename = (
+            base_filename if occurrence == 0 else f"{base_filename}_{occurrence + 1}"
+        )
         name_counts[base_filename] = occurrence + 1
         if fmt == "pickle":
             target = output_dir / f"{filename}.pkl"
