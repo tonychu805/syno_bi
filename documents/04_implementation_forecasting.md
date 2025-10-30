@@ -16,7 +16,7 @@ Build, evaluate, and operationalize forecasting models that generate reliable pr
 1. Establish baseline forecasts (naïve, moving average) for comparison with dbt-exposed feature marts
 2. Implement multiple linear regression training pipeline in `src/forecasting/`, sourcing features from Supabase/dbt models, and include feature scaling plus cross-validation tuned to ≤2% MAPE
 3. Add evaluation module capturing MAPE, sMAPE, WAPE, coverage intervals, and stability metrics
-4. Register artifacts (model params, coefficient snapshots, plots) back into Supabase or object storage and track in documents/model_eval.md for Tableau consumption
+4. Register artifacts (model params, coefficient snapshots, plots) back into Supabase or object storage and track in documents/model_eval.md for Metabase consumption
 
 ## Testing & Validation
 - Unit tests for metric calculations and data split utilities

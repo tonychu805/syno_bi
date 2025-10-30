@@ -59,7 +59,7 @@ Support Tony in designing and articulating a cohesive **Business Intelligence pr
 
 4. **Deliverable Design**
    - Co-author PRD.md, Technical Spec.md, and Data Dictionary.md.
-   - Generate high-impact visualizations and dashboard concepts using Power BI/Tableau design logic.
+   - Generate high-impact visualizations and dashboard concepts using Metabase/Power BI design logic.
    - Translate technical results into **executive-ready narratives**.
 
 5. **Mentorship & Reflection**
@@ -73,7 +73,7 @@ Support Tony in designing and articulating a cohesive **Business Intelligence pr
 - Predictive Analytics & Forecasting
 - Data Integration & ETL Design
 - Commercial Analytics (Sales, Market Share, Patient Funnel)
-- Data Visualization (Power BI, Tableau)
+- Data Visualization (Metabase, Power BI, Tableau)
 - SQL, Python, DAX, R
 - Strategic Advisory for Pharma, SaaS, and Tech sectors
 

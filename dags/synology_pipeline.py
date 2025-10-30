@@ -1,4 +1,4 @@
-"""Airflow DAG orchestrating ingestion, dbt transforms, forecasting, and Tableau refresh."""
+"""Airflow DAG orchestrating ingestion, dbt transforms, forecasting, and Metabase refresh."""
 
 from __future__ import annotations
 
@@ -67,9 +67,9 @@ def _run_forecast(**_: Dict[str, Any]) -> None:
     train_regression_forecast(output_dir=artifacts_dir)
 
 
-def _trigger_tableau_refresh(**_: Dict[str, Any]) -> None:
-    """Trigger Tableau refresh via n8n webhook if configured."""
-    webhook = os.environ.get("N8N_TABLEAU_WEBHOOK")
+def _trigger_metabase_refresh(**_: Dict[str, Any]) -> None:
+    """Trigger Metabase dashboard refresh via n8n webhook if configured."""
+    webhook = os.environ.get("N8N_METABASE_WEBHOOK")
     if not webhook:
         return
 
@@ -104,6 +104,6 @@ with DAG(
     dbt_run = PythonOperator(task_id="dbt_run", python_callable=_dbt_run)
     dbt_test = PythonOperator(task_id="dbt_test", python_callable=_dbt_test)
     forecast = PythonOperator(task_id="train_forecast", python_callable=_run_forecast)
-    tableau_refresh = PythonOperator(task_id="refresh_tableau", python_callable=_trigger_tableau_refresh)
+    metabase_refresh = PythonOperator(task_id="refresh_metabase", python_callable=_trigger_metabase_refresh)
 
-    ingestion >> dbt_run >> dbt_test >> forecast >> tableau_refresh
+    ingestion >> dbt_run >> dbt_test >> forecast >> metabase_refresh
