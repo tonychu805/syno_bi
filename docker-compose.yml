@@ -82,7 +82,7 @@ services:
       - ./env/dbt.env
     volumes:
       - ./dbt:/usr/app/dbt
-    command: sleep infinity
+    command: ["sh", "-c", "tail -f /dev/null"]
 
   n8n:
     image: n8nio/n8n:latest
