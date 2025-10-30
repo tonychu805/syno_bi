@@ -33,3 +33,6 @@ htmlcov/
 # Editors
 .vscode/
 .idea/
+
+# Others
+infra/
