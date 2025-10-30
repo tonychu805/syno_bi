@@ -12,3 +12,4 @@ synology_bi:
       schema: "analytics"
       threads: 4
       keepalives_idle: 60
+      sslmode: "require"
