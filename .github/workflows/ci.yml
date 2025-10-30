@@ -67,8 +67,9 @@ jobs:
           mkdir -p $HOME/.dbt
           if [ -z "$SUPABASE_HOST" ]; then
             echo "No Supabase host configured, using in-memory Postgres."
-            cat <<'EOF' > $HOME/.dbt/profiles.yml
-synology_bi:
+            python - <<'PYTHON'
+from pathlib import Path
+Path("$HOME/.dbt/profiles.yml").write_text("""synology_bi:
   target: ci
   outputs:
     ci:
@@ -82,7 +83,8 @@ synology_bi:
       threads: 2
       keepalives_idle: 60
       sslmode: disable
-EOF
+""", encoding="utf-8")
+PYTHON
           else
             cp dbt/profiles.yml.example $HOME/.dbt/profiles.yml
           fi
