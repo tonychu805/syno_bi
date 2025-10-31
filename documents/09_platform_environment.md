@@ -11,6 +11,7 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 ## Runtime Components
 - **Airflow**: Scheduler, webserver, worker, and triggerer containers sharing a common metadata database.
 - **dbt Runner**: Lightweight container image (Python 3.11) with dbt-core + dbt-postgres installed; invoked via Airflow tasks.
+- **dbt Docs**: Companion container that generates and serves dbt documentation on port 8081 for on-prem browsing.
 - **n8n**: Automation layer handling Metabase API calls, webhook handling, and alert routing.
 - **Metabase**: BI visualization application served from the NAS, connecting securely to the on-prem Postgres warehouse.
 - **Warehouse Postgres**: Stateful Postgres service hosted in Docker (see `postgres` container) storing staging and mart schemas for dbt, Airflow, and Metabase.
@@ -55,7 +56,7 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 3. **Populate Configs**: Copy `dbt/profiles.yml.example` to `dbt/profiles.yml`, fill Postgres warehouse credentials, and copy `env/*.env.example` to `env/*.env`, replacing every `CHANGE_ME`. Ensure `infra/postgres/init/create_metabase.sql` matches the Metabase database password (`MB_DB_PASS`).
 4. **Author Compose File**: Use the repo root `docker-compose.yml` (minimum services shown below) and validate with `docker compose config`.
 5. **Bootstrap Airflow**: `cd /volume1/docker/syno_bi/repo && docker compose up airflow-init` to initialize metadata DB and admin user accounts.
-6. **Start Stack**: From the same directory, run `docker compose up -d` (Airflow scheduler/webserver/worker, dbt runner, n8n, Metabase). Confirm health via UI and logs.
+6. **Start Stack**: From the same directory, run `docker compose up -d` (Airflow scheduler/webserver/worker, dbt runner, dbt docs, n8n, Metabase). Confirm health via UI and logs; dbt docs will be available at `http://<nas-host>:8081` once the models compile.
 7. **Register Connections**: In Airflow UI, configure Postgres warehouse connections and store Metabase API credentials (if refreshes are triggered via API); import n8n workflows pointing to Airflow webhooks if needed.
 8. **Schedule DAG**: Verify `synology_bi_pipeline` loads, update schedule/params as required, and trigger a dry run.
 

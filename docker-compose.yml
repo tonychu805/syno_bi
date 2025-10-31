@@ -88,6 +88,20 @@ services:
       - ./dbt:/usr/app/dbt
     entrypoint: ["/bin/sh", "-c", "sleep infinity"]
 
+  dbt-docs:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.7.11
+    container_name: dbt-docs
+    env_file:
+      - ./env/dbt.env
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./dbt:/usr/app/dbt
+    command: >
+      /bin/sh -c "dbt deps && dbt docs generate && dbt docs serve --host 0.0.0.0 --port 8081"
+    depends_on:
+      - postgres
+
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n
