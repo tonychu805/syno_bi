@@ -29,9 +29,9 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 
 ### In Scope
 - Data transformation and modeling using **dbt (Data Build Tool)**, SQL, and Python to create modular, version-controlled models in a star-schema architecture for sales and marketing data.
-- Centralized warehouse storage on **Supabase (cloud PostgreSQL)** with optional on-premise replication on **Synology NAS** for redundancy.
+- Centralized warehouse storage on **Synology NAS Postgres** with optional cloud-read replica if needed for external stakeholders.
 - Docker-based orchestration and automation for ETL, model retraining, and dashboard refresh workflows using **Apache Airflow (primary)** and **n8n (secondary)** hosted on Synology NAS.
-- Dashboard design and deployment in **Metabase**, connected to Supabase as the primary warehouse.
+- Dashboard design and deployment in **Metabase**, connected to the Postgres warehouse.
 - Predictive model creation (sales forecasting, opportunity identification).
 - Development of a forecasting and prioritization analytical framework.
 - Business case automation templates for marketing strategy.
@@ -71,7 +71,7 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
                    │
                    ▼
           ┌──────────────────┐
-          │  dbt + Supabase  │   (Data Transformation & Modeling)
+          │  dbt + Postgres  │   (Data Transformation & Modeling)
           │ - Cleaned Tables │
           │ - Fact/Dim Schema│
           └────────┬─────────┘
@@ -86,14 +86,14 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 
 ### Data Flow Summary
 - **Transformation & Modeling:** SQL and Python logic, orchestrated through **dbt** and Airflow, clean, aggregate, and structure datasets into a star-schema optimized for analytical queries. dbt manages dependencies, documentation, and model lineage for transparency.
-- **Storage & Warehouse:** Supabase (managed PostgreSQL) serves as the primary data warehouse, with optional PostgreSQL replication on Synology NAS for on-premise backup and local access. Data encryption and nightly snapshots ensure integrity.
+- **Storage & Warehouse:** The on-prem Synology Postgres instance serves as the primary data warehouse, with optional cloud replication for redundancy. Data encryption at rest and nightly NAS snapshots ensure integrity.
 - **Orchestration & Automation:** All ETL, model refresh, and dashboard refresh tasks orchestrated via Airflow (for data pipelines and dbt jobs) and n8n (for API automation and Metabase dashboard refreshes) running in Docker containers on Synology NAS.
-- **Visualization:** Metabase connects directly to Supabase via secure SSL PostgreSQL connection. Dashboards are refreshed via Metabase scheduling or triggered via n8n/Airflow API calls.
+- **Visualization:** Metabase connects directly to the Postgres warehouse via secure network tunnel. Dashboards are refreshed via Metabase scheduling or triggered via n8n/Airflow API calls.
 
 ## 5. Core Deliverables
 | Deliverable | Description | Owner |
 | --- | --- | --- |
-| Unified Data Warehouse | Centralized Supabase PostgreSQL database integrating all sources | Data Engineering |
+| Unified Data Warehouse | Centralized Postgres database on Synology integrating all sources | Data Engineering |
 | Forecasting Model | Predictive model estimating quarterly sales by region and SKU | BI Lead |
 | KPI Framework | Three-tier KPI hierarchy (Strategic, Tactical, Operational) | BI Lead |
 | Metabase Dashboards | Executive view and regional performance dashboards | BI Analyst |
@@ -135,7 +135,7 @@ Multiple linear regression optimized for Synology sale-out data with a target me
 - Unified color palette and metric definitions.
 - Automated refresh schedule (daily and weekly).
 - Embedded data dictionary and annotation fields.
-- Hosted in Metabase, connected directly to Supabase for live or scheduled queries.
+- Hosted in Metabase, connected directly to Postgres for live or scheduled queries.
 
 ## 8. Forecasting and Prioritization Framework
 
@@ -182,7 +182,7 @@ Reallocating 10% of marketing spend from awareness to retention in APAC delivers
 | Low dashboard adoption | Medium | Conduct training sessions and capture feedback for iteration. |
 | Forecast model overfitting | Medium | Apply rolling-window cross-validation. |
 | dbt model dependency errors | Medium | Enforce dependency graph validation and CI checks before deployments. |
-| Connection reliability between Metabase and Supabase | Medium | Configure SSL + periodic health checks for stable refreshes. |
+| Connection reliability between Metabase and Postgres | Medium | Configure SSL/tunnels + periodic health checks for stable refreshes. |
 
 ## 13. Expected Outcomes
 | Dimension | Expected Result |

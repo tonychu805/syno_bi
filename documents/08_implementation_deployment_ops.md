@@ -5,7 +5,7 @@ Deliver forecasting capabilities into production environments with reliable exec
 
 ## Responsibilities
 - Package codebase for deployment (container, wheel, or scheduled job) with reproducible environments
-- Operate the Airflow + n8n orchestration stack alongside dbt and forecasting services on Synology NAS/Supabase
+- Operate the Airflow + n8n orchestration stack alongside dbt and forecasting services on the Synology NAS Postgres warehouse
 - Manage configuration, secrets, and infrastructure-as-code for the runtime stack
 - Establish monitoring, alerting, and incident response workflows
 
@@ -14,10 +14,10 @@ Deliver forecasting capabilities into production environments with reliable exec
 - Outputs: Deployment manifests (Dockerfile, Helm chart, cron jobs), runbooks, operational dashboards
 
 ## Implementation Steps
-1. Define target deployment architecture covering Airflow, n8n, dbt project, forecasting services, Supabase connectivity, and Metabase hosting
+1. Define target deployment architecture covering Airflow, n8n, dbt project, forecasting services, Postgres connectivity, and Metabase hosting
 2. Create deployment artifacts (Docker images, helm/charts, or packaged CLI) for Airflow workers, dbt jobs, and forecasting tasks; automate build pipeline
 3. Manage environment variables and secrets via `.env`, Airflow connections, Vault, or cloud secret manager
-4. Set up runtime monitoring (Airflow health, Supabase replication status, Metabase health/refresh success), logging aggregation, metrics, alert thresholds, and escalation procedures
+4. Set up runtime monitoring (Airflow health, Postgres replication/status, Metabase health/refresh success), logging aggregation, metrics, alert thresholds, and escalation procedures
 5. Document disaster recovery steps, rollback plan, and capacity planning assumptions for both on-prem (Synology) and cloud components
 
 ## Testing & Validation
@@ -27,7 +27,7 @@ Deliver forecasting capabilities into production environments with reliable exec
 
 ## Tooling & Dependencies
 - Docker/Podman, Terraform/CloudFormation, Kubernetes or scheduler toolkit as applicable
-- Apache Airflow, n8n, dbt, Supabase CLI/SDK, Metabase API integrations
+- Apache Airflow, n8n, dbt, Postgres administration tooling (psql, pgcli), Metabase API integrations
 - Observability stack (Prometheus + Grafana, Datadog, etc.)
 
 ## Risks & Mitigations

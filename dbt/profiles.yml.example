@@ -1,15 +1,15 @@
-# Example dbt profile for connecting to Supabase (PostgreSQL)
+# Example dbt profile for connecting to the on-prem Postgres warehouse
 synology_bi:
   target: dev
   outputs:
     dev:
       type: postgres
-      host: "{{ env_var('SUPABASE_HOST') }}"
-      port: "{{ env_var('SUPABASE_PORT', '5432') | int }}"
-      user: "{{ env_var('SUPABASE_USER') }}"
-      password: "{{ env_var('SUPABASE_PASSWORD') }}"
-      dbname: "{{ env_var('SUPABASE_DB') }}"
+      host: "{{ env_var('WAREHOUSE_HOST', 'postgres') }}"
+      port: "{{ env_var('WAREHOUSE_PORT', '5432') | int }}"
+      user: "{{ env_var('WAREHOUSE_USER') }}"
+      password: "{{ env_var('WAREHOUSE_PASSWORD') }}"
+      dbname: "{{ env_var('WAREHOUSE_DB', 'syno_bi') }}"
       schema: "analytics"
       threads: 4
       keepalives_idle: 60
-      sslmode: "require"
+      sslmode: "{{ env_var('WAREHOUSE_SSLMODE', 'prefer') }}"

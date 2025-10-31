@@ -6,7 +6,7 @@ Transform preprocessed tables into model-ready datasets capturing temporal patte
 ## Responsibilities
 - Design reproducible feature pipelines aligned with business hypotheses
 - Maintain feature provenance via dbt model documentation and Python metadata manifests
-- Store prepared features in `data/processed/features/` and Supabase feature marts for reuse
+- Store prepared features in `data/processed/features/` and Postgres feature marts for reuse
 
 ## Inputs & Outputs
 - Inputs: Preprocessed Synology sale-out datasets, calendar/event tables, configuration for lags and aggregations
@@ -14,8 +14,8 @@ Transform preprocessed tables into model-ready datasets capturing temporal patte
 
 ## Implementation Steps
 1. Identify core feature sets (lags, rolling stats, categorical encodings, promotions) and align them to dbt intermediate/mart models
-2. Implement composable feature builders in `src/features/` with dependency injection for configs and Supabase read/write adapters
-3. Implement feature store interface (parquet/pickle + Supabase tables) and metadata manifest (YAML or JSON)
+2. Implement composable feature builders in `src/features/` with dependency injection for configs and Postgres read/write adapters
+3. Implement feature store interface (parquet/pickle + Postgres tables) and metadata manifest (YAML or JSON)
 4. Integrate feature quality checks (missingness, variance, leakage detection) before persisting and surface results through dbt docs or Airflow task logs
 
 ## Testing & Validation

@@ -6,15 +6,15 @@ Standardize raw tabular exports into clean, typed, and join-ready tables to feed
 ## Responsibilities
 - Normalize column naming (snake_case), enforce dtype schema, and handle nulls via dbt staging models and reusable pandas utilities
 - Record transformation rules in code, dbt YAML files, and documentation for auditability
-- Preserve immutable raw snapshots by writing results to `data/processed/preprocessed/` and loading curated tables into Supabase
+- Preserve immutable raw snapshots by writing results to `data/processed/preprocessed/` and loading curated tables into the warehouse Postgres instance
 
 ## Inputs & Outputs
 - Inputs: Serialized Synology sale-out ingestion artifacts (pickle/CSV), schema definitions, cleaning config
-- Outputs: Curated tables materialized as dbt staging/intermediate models in Supabase, alongside local summary statistics and profiling reports
+- Outputs: Curated tables materialized as dbt staging/intermediate models in Postgres, alongside local summary statistics and profiling reports
 
 ## Implementation Steps
 1. Define canonical schema per dataset (dtypes, expected ranges, categorical mappings) in shared YAML configs and dbt `schema.yml` files
-2. Build dbt staging models (and supporting `src/preprocessing/cleaning.py` helpers) that apply deterministic transforms before loading to Supabase
+2. Build dbt staging models (and supporting `src/preprocessing/cleaning.py` helpers) that apply deterministic transforms before loading to Postgres
 3. Configure dbt sources, seeds, and exposures so downstream marts and forecasting features inherit consistent lineage
 4. Capture profiling metrics (null ratios, duplicates) and store in dbt docs or operational logs
 

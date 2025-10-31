@@ -10,7 +10,7 @@ Capture every worksheet in the Synology sale-out Excel snapshots and expose them
 
 ## Inputs & Outputs
 - Inputs: Excel workbooks under `raw/`, config for output directory, serialization format
-- Outputs: Serialized DataFrames under `data/processed/ingestion/` (pickle by default, CSV optional) suitable for dbt seeds or Supabase staging loads, plus CLI logs summarizing saved sheets
+- Outputs: Serialized DataFrames under `data/processed/ingestion/` (pickle by default, CSV optional) suitable for dbt seeds or Postgres staging loads, plus CLI logs summarizing saved sheets
 
 ## Implementation Steps
 1. Finalize CLI options (engine override, format toggle, index persistence)

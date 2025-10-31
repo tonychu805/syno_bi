@@ -11,10 +11,10 @@ Orchestrate ingestion, preprocessing, feature engineering, and forecasting steps
 
 ## Inputs & Outputs
 - Inputs: Module-level configs, environment variables, orchestration metadata, dbt project files
-- Outputs: Airflow run logs, Supabase table refresh status, Metabase dashboard refresh confirmations or cache clears, success/failure notifications
+- Outputs: Airflow run logs, Postgres table refresh status, Metabase dashboard refresh confirmations or cache clears, success/failure notifications
 
 ## Implementation Steps
-1. Provision Airflow on the Synology NAS (Docker Compose or Kubernetes) with connections for Supabase, Metabase (if using API hooks), and dbt
+1. Provision Airflow on the Synology NAS (Docker Compose or Kubernetes) with connections for Postgres, Metabase (if using API hooks), and dbt
 2. Define DAGs aligning with data availability windows and SLAs: ingestion → dbt run + test → feature/forecast jobs → Metabase refresh or notifications
 3. Implement centralized config management (YAML + environment overrides) and secrets handling using Airflow Connections/Variables or Vault
 4. Integrate dbt operators (`dbt run`, `dbt test`) and PythonOperator tasks for forecasting, capturing lineage metadata
@@ -29,7 +29,7 @@ Orchestrate ingestion, preprocessing, feature engineering, and forecasting steps
 ## Tooling & Dependencies
 - Apache Airflow (primary orchestrator), n8n for API workflows, Docker for containerized deployment
 - dbt CLI/operators, python-dotenv for config, logging/structlog
-- Metabase API or CLI for triggering dashboard cache refreshes, Supabase client libraries for data loads
+- Metabase API or CLI for triggering dashboard cache refreshes, Postgres client libraries for data loads
 
 ## Risks & Mitigations
 - Orchestrator complexity: start with minimal viable flow, add features iteratively

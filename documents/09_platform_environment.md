@@ -12,8 +12,8 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 - **Airflow**: Scheduler, webserver, worker, and triggerer containers sharing a common metadata database.
 - **dbt Runner**: Lightweight container image (Python 3.11) with dbt-core + dbt-postgres installed; invoked via Airflow tasks.
 - **n8n**: Automation layer handling Metabase API calls, webhook handling, and alert routing.
-- **Metabase**: BI visualization application served from the NAS, connecting securely to Supabase.
-- **Supabase Connectivity**: Managed Postgres in the cloud accessed via secure network tunnel (VPN or IP allowlist).
+- **Metabase**: BI visualization application served from the NAS, connecting securely to the on-prem Postgres warehouse.
+- **Warehouse Postgres**: Stateful Postgres service hosted in Docker (see `postgres` container) storing staging and mart schemas for dbt, Airflow, and Metabase.
 - **Supporting Services**: Redis or Celery backend (if required), PostgreSQL metadata database for Airflow (can be NAS-hosted), and shared volumes for logs/artifacts.
 
 ## Directory Layout (NAS)
@@ -23,7 +23,7 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 │   ├── docker-compose.yml   # Uses ./env/*.env for secrets
 │   ├── env/
 │   │   ├── airflow.env      # Airflow-specific environment variables
-│   │   ├── dbt.env          # dbt runner variables (Supabase creds)
+│   │   ├── dbt.env          # dbt runner variables (Postgres warehouse creds)
 │   │   ├── metabase.env     # Metabase application configuration
 │   │   └── n8n.env          # Webhook secrets, Metabase API tokens
 │   ├── infra/
@@ -42,7 +42,7 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 ```
 
 ## Environment Variables
-- `SUPABASE_HOST`, `SUPABASE_DB`, `SUPABASE_USER`, `SUPABASE_PASSWORD`: shared across Airflow/dbt containers.
+- `WAREHOUSE_HOST`, `WAREHOUSE_DB`, `WAREHOUSE_USER`, `WAREHOUSE_PASSWORD`: shared across Airflow/dbt containers; defaults point to the internal `postgres` service.
 - `MB_DB_HOST`, `MB_DB_DBNAME`, `MB_DB_USER`, `MB_DB_PASS`, `MB_ENCRYPTION_SECRET_KEY`: configure the Metabase application database (defaults provided in `metabase.env`).
 - `METABASE_HOST`, `METABASE_API_TOKEN`, `N8N_METABASE_WEBHOOK`: consumed by n8n automations if triggering Metabase dashboard refreshes via API or webhooks.
 - `AIRFLOW__CORE__FERNET_KEY`, `AIRFLOW__CORE__SQL_ALCHEMY_CONN`, `AIRFLOW__WEBSERVER__SECRET_KEY`: Airflow metadata and security.
@@ -52,11 +52,11 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 ## Deployment Steps
 1. **Prep NAS**: Install Docker package, enable SSH, and allocate storage volume under `/volume1/docker/syno_bi`.
 2. **Check Out Repo**: Clone `syno_prediction` to `/volume1/docker/syno_bi/repo` or use Synology Git Server.
-3. **Populate Configs**: Copy `dbt/profiles.yml.example` to `dbt/profiles.yml`, fill Supabase credentials, and copy `env/*.env.example` to `env/*.env`, replacing every `CHANGE_ME`. Ensure `infra/postgres/init/create_metabase.sql` matches the Metabase database password (`MB_DB_PASS`).
+3. **Populate Configs**: Copy `dbt/profiles.yml.example` to `dbt/profiles.yml`, fill Postgres warehouse credentials, and copy `env/*.env.example` to `env/*.env`, replacing every `CHANGE_ME`. Ensure `infra/postgres/init/create_metabase.sql` matches the Metabase database password (`MB_DB_PASS`).
 4. **Author Compose File**: Use the repo root `docker-compose.yml` (minimum services shown below) and validate with `docker compose config`.
 5. **Bootstrap Airflow**: `cd /volume1/docker/syno_bi/repo && docker compose up airflow-init` to initialize metadata DB and admin user accounts.
 6. **Start Stack**: From the same directory, run `docker compose up -d` (Airflow scheduler/webserver/worker, dbt runner, n8n, Metabase). Confirm health via UI and logs.
-7. **Register Connections**: In Airflow UI, configure Supabase connections and store Metabase API credentials (if refreshes are triggered via API); import n8n workflows pointing to Airflow webhooks if needed.
+7. **Register Connections**: In Airflow UI, configure Postgres warehouse connections and store Metabase API credentials (if refreshes are triggered via API); import n8n workflows pointing to Airflow webhooks if needed.
 8. **Schedule DAG**: Verify `synology_bi_pipeline` loads, update schedule/params as required, and trigger a dry run.
 
 ## CI/CD Integration
@@ -138,7 +138,7 @@ services:
 ## Operational Guidelines
 - **Backups**: Schedule nightly snapshots of `airflow/logs`, `n8n/data`, and Postgres volumes; export dbt manifests to S3/NAS archive.
 - **Upgrades**: Test new Airflow/dbt images in staging; use rolling upgrades (stop scheduler last) and validate DAG compatibility.
-- **Secrets Management**: Rotate Supabase/Metabase tokens quarterly; restrict env files to NAS admin group.
+- **Secrets Management**: Rotate Postgres/Metabase credentials quarterly; restrict env files to NAS admin group.
 - **Monitoring**: Publish Airflow metrics to Prometheus/Grafana or Synology Resource Monitor; configure email/Slack alerts via Airflow + n8n.
 
 ## Deliverables & Checkpoints
