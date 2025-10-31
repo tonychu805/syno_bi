@@ -56,17 +56,17 @@ jobs:
           pip install dbt-core dbt-postgres
           pip install psycopg2-binary
 
-      - name: Configure dbt profile (Supabase if available, fallback to local)
+      - name: Configure dbt profile (warehouse env or local fallback)
         run: |
           mkdir -p "$HOME/.dbt"
-          if [ -n "${SUPABASE_HOST:-}" ]; then
+          if [ -n "${WAREHOUSE_HOST:-}" ]; then
             cp dbt/profiles.yml.example "$HOME/.dbt/profiles.yml"
           else
             printf '%s\n' \
               'synology_bi:' \
-              '  target: ci' \
+              '  target: dev' \
               '  outputs:' \
-              '    ci:' \
+              '    dev:' \
               '      type: postgres' \
               '      host: localhost' \
               '      port: 5432' \
