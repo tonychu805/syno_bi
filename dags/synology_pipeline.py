@@ -12,7 +12,11 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 
 from src.forecasting.regression import train_regression_forecast
-from src.ingestion import excel_to_dataframes
+from src.ingestion import (
+    SalesCleaningConfig,
+    excel_to_dataframes,
+    run_sales_cleaning_pipeline,
+)
 
 
 def _repo_root() -> Path:
@@ -35,6 +39,33 @@ def _run_ingestion(**_: Dict[str, Any]) -> None:
         fmt=os.environ.get("INGESTION_FORMAT", "csv"),
         include_index=False,
     )
+
+
+def _run_sales_cleaning(**_: Dict[str, Any]) -> None:
+    """Run the consolidated sales cleaning pipeline for selected sheets."""
+
+    repo = _repo_root()
+    default_workbook = repo / "data" / "raw" / "synosales_2023.1-2024.12.xlsx"
+    workbook = Path(os.environ.get("SYNOSALES_WORKBOOK", default_workbook))
+
+    sheet_list = os.environ.get("SALES_CLEAN_SHEETS", "2023-C2,2024-C2,2023,2024")
+    include_sheets = [sheet.strip() for sheet in sheet_list.split(",") if sheet.strip()]
+
+    config = SalesCleaningConfig(
+        workbook_path=workbook,
+        include_sheets=include_sheets,
+    )
+
+    cleaned = run_sales_cleaning_pipeline(config)
+
+    output_path = Path(
+        os.environ.get(
+            "SALES_CLEAN_OUTPUT",
+            repo / "data" / "processed" / "synosales_cleaned.parquet",
+        )
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cleaned.to_parquet(output_path, index=False)
 
 
 def _run_dbt(command: str) -> None:
@@ -101,9 +132,10 @@ with DAG(
     tags=["synology", "bi"],
 ) as dag:
     ingestion = PythonOperator(task_id="ingest_excel", python_callable=_run_ingestion)
+    clean_sales = PythonOperator(task_id="clean_sales", python_callable=_run_sales_cleaning)
     dbt_run = PythonOperator(task_id="dbt_run", python_callable=_dbt_run)
     dbt_test = PythonOperator(task_id="dbt_test", python_callable=_dbt_test)
     forecast = PythonOperator(task_id="train_forecast", python_callable=_run_forecast)
     metabase_refresh = PythonOperator(task_id="refresh_metabase", python_callable=_trigger_metabase_refresh)
 
-    ingestion >> dbt_run >> dbt_test >> forecast >> metabase_refresh
+    ingestion >> clean_sales >> dbt_run >> dbt_test >> forecast >> metabase_refresh
