@@ -8,8 +8,6 @@ modern ingestion pipeline while removing interactive notebook helpers.
 
 from __future__ import annotations
 
-from typing import Iterable
-
 import pandas as pd
 
 _DRIVE_PREFIXES = ("HAT", "HAS", "SNV", "SAT5")
