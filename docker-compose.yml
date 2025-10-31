@@ -115,7 +115,7 @@ services:
       POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD:-airflow}
       POSTGRES_DB: airflow
     ports: 
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - ./infra/postgres/data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d
