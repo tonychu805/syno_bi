@@ -41,9 +41,9 @@ def test_pipeline_combines_and_enriches_workbook(tmp_path: Path) -> None:
     _build_sample_workbook(workbook)
 
     country_map = tmp_path / "countries.csv"
-    pd.DataFrame({"Country": ["United States", "Germany"], "Region": ["NA", "DE"]}).to_csv(
-        country_map, index=False
-    )
+    pd.DataFrame(
+        {"Country": ["United States", "Germany"], "Region": ["NA", "DE"]}
+    ).to_csv(country_map, index=False)
 
     device_map = tmp_path / "device_bays.csv"
     pd.DataFrame({"Product": ["DS220j"], "Bays": [2]}).to_csv(device_map, index=False)

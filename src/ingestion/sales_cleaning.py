@@ -19,7 +19,9 @@ DEFAULT_EXCHANGE_RATES: Dict[str, float] = {
     "USD": 1.00,
 }
 
-DEFAULT_COUNTRY_MAPPING_PATH = Path("data/mapping_table/Mapped_Countries_with_Regions.csv")
+DEFAULT_COUNTRY_MAPPING_PATH = Path(
+    "data/mapping_table/Mapped_Countries_with_Regions.csv"
+)
 DEFAULT_DEVICE_BAY_MAPPING_PATH = Path("data/mapping_table/device_to_bay.csv")
 
 
@@ -28,7 +30,9 @@ class SalesCleaningConfig:
     """Configuration for :func:`run_sales_cleaning_pipeline`."""
 
     workbook_path: Path
-    currency_rates: Mapping[str, float] = field(default_factory=lambda: DEFAULT_EXCHANGE_RATES)
+    currency_rates: Mapping[str, float] = field(
+        default_factory=lambda: DEFAULT_EXCHANGE_RATES
+    )
     country_mapping_path: Path | None = None
     device_to_bay_path: Path | None = None
     engine: str | None = None
@@ -36,7 +40,9 @@ class SalesCleaningConfig:
 
 
 def _load_workbook(
-    workbook_path: Path, engine: str | None = None, include_sheets: Sequence[str] | None = None
+    workbook_path: Path,
+    engine: str | None = None,
+    include_sheets: Sequence[str] | None = None,
 ) -> pd.DataFrame:
     """Load and concatenate every worksheet from ``workbook_path``."""
 
@@ -80,7 +86,10 @@ def _apply_currency_conversion(
     """Append USD conversion columns."""
 
     rate_frame = pd.DataFrame(
-        {"Currency": list(currency_rates.keys()), "exchange_rate_to_usd": list(currency_rates.values())}
+        {
+            "Currency": list(currency_rates.keys()),
+            "exchange_rate_to_usd": list(currency_rates.values()),
+        }
     )
     merged = frame.merge(rate_frame, on="Currency", how="left")
 
@@ -89,7 +98,9 @@ def _apply_currency_conversion(
     return merged
 
 
-def _map_country_regions(frame: pd.DataFrame, mapping_path: Path | None) -> pd.DataFrame:
+def _map_country_regions(
+    frame: pd.DataFrame, mapping_path: Path | None
+) -> pd.DataFrame:
     """Attach region metadata if a mapping file is provided."""
 
     if mapping_path is None:
@@ -105,7 +116,9 @@ def _map_country_regions(frame: pd.DataFrame, mapping_path: Path | None) -> pd.D
     return frame.merge(mapping, on="Country", how="left")
 
 
-def _attach_device_bays(frame: pd.DataFrame, device_bay_path: Path | None) -> pd.DataFrame:
+def _attach_device_bays(
+    frame: pd.DataFrame, device_bay_path: Path | None
+) -> pd.DataFrame:
     """Attach bay counts when a reference table is available."""
 
     if device_bay_path is None:
@@ -136,7 +149,9 @@ def _clean_sales_frame(config: SalesCleaningConfig) -> pd.DataFrame:
     frame = frame[frame["Total"] >= 0].copy()
     frame.loc[:, "Product"] = _strip_parenthetical_products(frame)
 
-    frame = assign_product_categories(frame, product_column="Product", type_column="Type", subtype_column="sub_cat")
+    frame = assign_product_categories(
+        frame, product_column="Product", type_column="Type", subtype_column="sub_cat"
+    )
     frame = _apply_currency_conversion(frame, config.currency_rates)
     frame.loc[:, "Year"] = pd.to_datetime(frame["InvDate"], errors="coerce").dt.year
 

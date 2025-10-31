@@ -183,9 +183,7 @@ def categorize_server_subtype(
 
     if main_category == "SERVER":
         if lower_name.startswith("ds"):
-            if any(
-                term in lower_name for term in ("xs", "xs+", "fs1018", "ds24")
-            ):
+            if any(term in lower_name for term in ("xs", "xs+", "fs1018", "ds24")):
                 return "SVR-DT-DS-T3"
             if "+" in lower_name or "ds620slim" in lower_name:
                 return "SVR-DT-DS-T2"
@@ -317,7 +315,9 @@ def categorize_server_subtype(
     return ""
 
 
-def assign_product_category(frame: pd.DataFrame, product_column: str = "Product") -> pd.Series:
+def assign_product_category(
+    frame: pd.DataFrame, product_column: str = "Product"
+) -> pd.Series:
     """Vectorised wrapper for :func:`categorize_product`."""
 
     return frame[product_column].apply(categorize_product)
@@ -332,7 +332,9 @@ def assign_product_subcategory(
     """Vectorised wrapper for :func:`categorize_server_subtype`."""
 
     return frame.apply(
-        lambda row: categorize_server_subtype(row[product_column], row[category_column]),
+        lambda row: categorize_server_subtype(
+            row[product_column], row[category_column]
+        ),
         axis=1,
     )
 
@@ -344,17 +346,23 @@ def extract_drive_capacities(frame: pd.DataFrame) -> pd.DataFrame:
     drive_frame = pd.DataFrame({"Product": drives})
 
     capacity_frame = drive_frame[
-        drive_frame["Product"].str.match(r"^[A-Z0-9]+-[0-9]+[GT](\s*\(.*\))?$", na=False)
+        drive_frame["Product"].str.match(
+            r"^[A-Z0-9]+-[0-9]+[GT](\s*\(.*\))?$", na=False
+        )
     ].copy()
 
     capacity_frame.loc[:, "Capacity"] = capacity_frame["Product"].str.split("-").str[1]
-    capacity_frame.loc[:, "Capacity"] = capacity_frame["Capacity"].str.extract(r"(\d+)")[0]
+    capacity_frame.loc[:, "Capacity"] = capacity_frame["Capacity"].str.extract(
+        r"(\d+)"
+    )[0]
     capacity_frame.loc[:, "Capacity"] = (
         capacity_frame["Capacity"].str.replace("G", "").str.replace("T", "").astype(int)
     )
 
     capacity_frame.loc[:, "Capacity"] = capacity_frame.apply(
-        lambda row: row["Capacity"] * 1000 if row["Product"].endswith("T") else row["Capacity"],
+        lambda row: row["Capacity"] * 1000
+        if row["Product"].endswith("T")
+        else row["Capacity"],
         axis=1,
     )
     capacity_frame.loc[:, "Unit"] = "GB"
