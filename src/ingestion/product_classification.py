@@ -360,9 +360,9 @@ def extract_drive_capacities(frame: pd.DataFrame) -> pd.DataFrame:
     )
 
     capacity_frame.loc[:, "Capacity"] = capacity_frame.apply(
-        lambda row: row["Capacity"] * 1000
-        if row["Product"].endswith("T")
-        else row["Capacity"],
+        lambda row: (
+            row["Capacity"] * 1000 if row["Product"].endswith("T") else row["Capacity"]
+        ),
         axis=1,
     )
     capacity_frame.loc[:, "Unit"] = "GB"
