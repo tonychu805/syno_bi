@@ -27,6 +27,7 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
+      - ./src:/opt/airflow/src
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
     command: scheduler
@@ -43,6 +44,7 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
+      - ./src:/opt/airflow/src
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
     command: triggerer
@@ -70,6 +72,7 @@ services:
           --password "$${AIRFLOW_ADMIN_PASSWORD:-admin}"
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
     depends_on:
