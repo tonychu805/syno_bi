@@ -82,8 +82,7 @@ services:
       - ./env/dbt.env
     volumes:
       - ./dbt:/usr/app/dbt
-    entrypoint: ["sh", "-c"]
-    command: "tail -f /dev/null"
+    entrypoint: ["/bin/sh", "-c", "sleep infinity"]
 
   n8n:
     image: n8nio/n8n:latest
