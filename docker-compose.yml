@@ -53,6 +53,23 @@ services:
       - postgres
       - redis
 
+  airflow-worker:
+    image: apache/airflow:2.8.1-python3.11
+    container_name: airflow-worker
+    env_file:
+      - ./env/airflow.env
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./dbt:/opt/airflow/dbt
+      - ./src:/opt/airflow/src
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+    command: celery worker
+    depends_on:
+      - airflow-webserver
+      - postgres
+      - redis
+
   airflow-init:
     image: apache/airflow:2.8.1-python3.11
     container_name: airflow-init
