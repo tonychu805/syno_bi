@@ -33,6 +33,26 @@ Orchestrate ingestion, preprocessing, feature engineering, and forecasting steps
 - `publish_lineage` updates metadata tables with run_id, row counts, data freshness.
 - **Outputs**: cleaned parquet, staging/mart tables refreshed in warehouse, quality reports.
 
+```mermaid
+flowchart LR
+    subgraph syno_ingestion ["syno_ingestion"]
+        A[wait_for_workbook] --> B[validate_snapshot] --> C[split_excel_tabs] --> D[publish_ingestion_manifest]
+    end
+    subgraph syno_transform ["syno_transform"]
+        E[prep_reference_data] --> F[clean_sales] --> G[dbt_staging] --> H[dbt_tests] --> I[dbt_marts] --> J[run_quality_gates] --> K[publish_lineage]
+    end
+    subgraph syno_forecast ["syno_forecast"]
+        L[fetch_training_set] --> M[train_forecast] --> N[evaluate_forecast] --> O[store_model_artifacts] --> P[publish_forecast_outputs] --> Q[notify_forecast_status]
+    end
+    subgraph syno_activation ["syno_activation"]
+        R[refresh_metabase] --> S[send_summary_notifications] --> T[update_data_catalog]
+    end
+
+    D --> E
+    K --> L
+    P --> R
+```
+
 ### 3. Forecast (`syno_forecast`)
 - Scheduled daily/weekly or triggered off transform completion.
 - `fetch_training_set` queries staging/marts, stores training snapshot.
@@ -76,3 +96,23 @@ Orchestrate ingestion, preprocessing, feature engineering, and forecasting steps
 - Runbook detailing restart procedures, alert routing, and on-call contact.
 - CI pipeline executing linting, tests, and optional Dockerized pipeline smoke run.
 - Data lineage/metadata tables populated after each transform run.
+
+## Operations Runbook Checklist
+
+**Pre-run**
+- Confirm latest Synology workbook is present in `data/raw/` and matches expected naming/version.
+- Verify mapping tables in `data/mapping_table/` correspond to the commit hash referenced in docs.
+- Validate Airflow Variables/Connections (sheet list, output paths, Metabase webhook) are set correctly.
+- Smoke-test dbt connectivity (`dbt debug`) if credentials or infra changed recently.
+
+**During run**
+- Watch DAG graph views: ingestion → transform → forecast → activation; re-run failed tasks only after fixing root cause.
+- Monitor row-count/quality metrics emitted by `run_quality_gates` and `evaluate_forecast`.
+- Investigate any `dbt_tests` failure via `logs/dbt.log` and apply hotfix or data correction before resuming.
+- Check forecast metadata (MAPE/sMAPE) written to `data/processed/forecasts/` for drift beyond SLA.
+
+**Post-run**
+- Archive manifest or metadata rows (run_id, file hash, sheet coverage) for audit.
+- Spot-check key Metabase dashboards to confirm refresh completed (or review API response).
+- Ensure summary notifications reached intended channels; escalate manually if automation flags errors.
+- Log incidents, create follow-up tickets for recurring issues, and update this checklist when procedures change.
