@@ -18,8 +18,10 @@ services:
       - ./data/processed:/opt/airflow/data/processed
     command: webserver
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   airflow-scheduler:
     image: apache/airflow:2.8.1-python3.11
@@ -36,9 +38,12 @@ services:
       - ./data/processed:/opt/airflow/data/processed
     command: scheduler
     depends_on:
-      - airflow-webserver
-      - postgres
-      - redis
+      airflow-webserver:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   airflow-triggerer:
     image: apache/airflow:2.8.1-python3.11
@@ -55,9 +60,12 @@ services:
       - ./data/processed:/opt/airflow/data/processed
     command: triggerer
     depends_on:
-      - airflow-webserver
-      - postgres
-      - redis
+      airflow-webserver:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   airflow-worker:
     image: apache/airflow:2.8.1-python3.11
@@ -74,9 +82,12 @@ services:
       - ./data/processed:/opt/airflow/data/processed
     command: celery worker --concurrency 4
     depends_on:
-      - airflow-webserver
-      - postgres
-      - redis
+      airflow-webserver:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   airflow-init:
     image: apache/airflow:2.8.1-python3.11
@@ -104,8 +115,10 @@ services:
       - ./data/raw:/opt/airflow/raw
       - ./data/processed:/opt/airflow/data/processed
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   dbt-runner:
     image: ghcr.io/dbt-labs/dbt-postgres:1.7.11
@@ -159,11 +172,17 @@ services:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD:-airflow}
       POSTGRES_DB: airflow
-    ports: 
+    ports:
       - "55432:5432"
     volumes:
       - ./infra/postgres/data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   redis:
     image: redis:7-alpine
