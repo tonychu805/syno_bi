@@ -2,7 +2,10 @@ version: "3.9"
 
 services:
   airflow-webserver:
-    image: apache/airflow:2.8.1-python3.11
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: syno-airflow:2.8.1-git
     container_name: airflow-webserver
     env_file:
       - ./env/airflow.env
@@ -30,7 +33,10 @@ services:
         condition: service_started
 
   airflow-scheduler:
-    image: apache/airflow:2.8.1-python3.11
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: syno-airflow:2.8.1-git
     container_name: airflow-scheduler
     env_file:
       - ./env/airflow.env
@@ -58,7 +64,10 @@ services:
         condition: service_started
 
   airflow-triggerer:
-    image: apache/airflow:2.8.1-python3.11
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: syno-airflow:2.8.1-git
     container_name: airflow-triggerer
     env_file:
       - ./env/airflow.env
@@ -86,7 +95,10 @@ services:
         condition: service_started
 
   airflow-worker:
-    image: apache/airflow:2.8.1-python3.11
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: syno-airflow:2.8.1-git
     container_name: airflow-worker
     env_file:
       - ./env/airflow.env
@@ -114,7 +126,10 @@ services:
         condition: service_started
 
   airflow-init:
-    image: apache/airflow:2.8.1-python3.11
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: syno-airflow:2.8.1-git
     container_name: airflow-init
     env_file:
       - ./env/airflow.env

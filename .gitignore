@@ -39,3 +39,5 @@ htmlcov/
 # Others
 data/archive
 data/processed
+@eaDir/
+infra/n8n/
