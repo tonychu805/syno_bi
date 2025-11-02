@@ -6,6 +6,8 @@ services:
     container_name: airflow-webserver
     env_file:
       - ./env/airflow.env
+    environment:
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
     ports:
       - "8080:8080"
     volumes:
@@ -29,6 +31,8 @@ services:
     container_name: airflow-scheduler
     env_file:
       - ./env/airflow.env
+    environment:
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
@@ -52,6 +56,8 @@ services:
     container_name: airflow-triggerer
     env_file:
       - ./env/airflow.env
+    environment:
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
@@ -75,6 +81,8 @@ services:
     container_name: airflow-worker
     env_file:
       - ./env/airflow.env
+    environment:
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
@@ -98,6 +106,8 @@ services:
     container_name: airflow-init
     env_file:
       - ./env/airflow.env
+    environment:
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
     entrypoint: /bin/bash
     command:
       - -c
