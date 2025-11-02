@@ -14,6 +14,8 @@ services:
       - ./src:/opt/airflow/src 
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./data/raw:/opt/airflow/data/raw
+      - ./data/processed:/opt/airflow/data/processed
     command: webserver
     depends_on:
       - postgres
@@ -30,6 +32,8 @@ services:
       - ./src:/opt/airflow/src
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./data/raw:/opt/airflow/data/raw
+      - ./data/processed:/opt/airflow/data/processed
     command: scheduler
     depends_on:
       - airflow-webserver
@@ -47,6 +51,8 @@ services:
       - ./src:/opt/airflow/src
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./data/raw:/opt/airflow/data/raw
+      - ./data/processed:/opt/airflow/data/processed
     command: triggerer
     depends_on:
       - airflow-webserver
@@ -64,7 +70,9 @@ services:
       - ./src:/opt/airflow/src
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
-    command: celery worker
+      - ./data/raw:/opt/airflow/data/raw
+      - ./data/processed:/opt/airflow/data/processed
+    command: celery worker --concurrency 4
     depends_on:
       - airflow-webserver
       - postgres
@@ -92,6 +100,8 @@ services:
       - ./src:/opt/airflow/src
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./data/raw:/opt/airflow/data/raw
+      - ./data/processed:/opt/airflow/data/processed
     depends_on:
       - postgres
       - redis
