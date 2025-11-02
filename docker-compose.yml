@@ -17,6 +17,7 @@ services:
       - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./dbt/profiles.yml:/home/airflow/.dbt/profiles.yml:ro
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
@@ -42,6 +43,7 @@ services:
       - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./dbt/profiles.yml:/home/airflow/.dbt/profiles.yml:ro
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
@@ -69,6 +71,7 @@ services:
       - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./dbt/profiles.yml:/home/airflow/.dbt/profiles.yml:ro
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
@@ -96,6 +99,7 @@ services:
       - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./dbt/profiles.yml:/home/airflow/.dbt/profiles.yml:ro
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
@@ -131,6 +135,7 @@ services:
       - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
+      - ./dbt/profiles.yml:/home/airflow/.dbt/profiles.yml:ro
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
