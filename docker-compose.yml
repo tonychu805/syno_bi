@@ -205,6 +205,18 @@ services:
     depends_on:
       - postgres
 
+  pgadmin:
+    image: dpage/pgadmin4:8.11
+    container_name: pgadmin
+    env_file:
+      - ./env/pgadmin.env
+    ports:
+      - "5050:5050"
+    volumes:
+      - ./infra/pgadmin/data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+
   postgres:
     image: postgres:15-alpine
     container_name: airflow-postgres
