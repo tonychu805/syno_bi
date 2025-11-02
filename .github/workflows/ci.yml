@@ -137,5 +137,6 @@ jobs:
              git fetch origin main && \
              git checkout main && \
              git pull origin main && \
-             docker compose pull && \
+             docker compose pull --ignore-pull-failures && \
+             docker compose build airflow-webserver airflow-scheduler airflow-worker airflow-triggerer airflow-init && \
              docker compose up -d"
