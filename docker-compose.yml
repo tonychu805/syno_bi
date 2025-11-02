@@ -7,20 +7,21 @@ services:
     env_file:
       - ./env/airflow.env
     environment:
-      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/requirements.txt"
     ports:
       - "8080:8080"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
       - ./src:/opt/airflow/src
+      - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
     command: >
-      bash -c "pip install --no-cache-dir -r /opt/airflow/src/requirements.txt && exec airflow webserver"
+      bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && exec airflow webserver"
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,18 +34,19 @@ services:
     env_file:
       - ./env/airflow.env
     environment:
-      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/requirements.txt"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
       - ./src:/opt/airflow/src
+      - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
     command: >
-      bash -c "pip install --no-cache-dir -r /opt/airflow/src/requirements.txt && exec airflow scheduler"
+      bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && exec airflow scheduler"
     depends_on:
       airflow-webserver:
         condition: service_started
@@ -59,18 +61,19 @@ services:
     env_file:
       - ./env/airflow.env
     environment:
-      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/requirements.txt"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
       - ./src:/opt/airflow/src
+      - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
     command: >
-      bash -c "pip install --no-cache-dir -r /opt/airflow/src/requirements.txt && exec airflow triggerer"
+      bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && exec airflow triggerer"
     depends_on:
       airflow-webserver:
         condition: service_started
@@ -85,18 +88,19 @@ services:
     env_file:
       - ./env/airflow.env
     environment:
-      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/requirements.txt"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
       - ./src:/opt/airflow/src
+      - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
     command: >
-      bash -c "pip install --no-cache-dir -r /opt/airflow/src/requirements.txt && exec airflow celery worker --concurrency 4"
+      bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && exec airflow celery worker --concurrency 4"
     depends_on:
       airflow-webserver:
         condition: service_started
@@ -111,10 +115,10 @@ services:
     env_file:
       - ./env/airflow.env
     environment:
-      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/src/requirements.txt"
+      PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/requirements.txt"
     entrypoint: /bin/bash
     command: >
-      bash -c "pip install --no-cache-dir -r /opt/airflow/src/requirements.txt && \
+      bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && \
       airflow db init && \
       airflow users create --username \"$${AIRFLOW_ADMIN_USER:-admin}\" \
         --firstname Admin --lastname User --role Admin \
@@ -124,6 +128,7 @@ services:
       - ./dags:/opt/airflow/dags
       - ./dbt:/opt/airflow/dbt
       - ./src:/opt/airflow/src
+      - ./requirements.txt:/opt/airflow/requirements.txt:ro
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
       - ./data/raw:/opt/airflow/raw
