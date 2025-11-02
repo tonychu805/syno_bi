@@ -9,12 +9,24 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Dict, Iterable, Mapping
 
 import pandas as pd
 
 SUPPORTED_FORMATS = {"pickle", "csv"}
+
+
+def _ensure_openpyxl() -> None:
+    """Install openpyxl if it is missing."""
+
+    try:
+        import openpyxl  # type: ignore  # noqa: F401
+    except ImportError:  # pragma: no cover - dependency bootstrap
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
+        import openpyxl  # type: ignore  # noqa: F401
 
 
 def sanitize_sheet_name(sheet_name: str) -> str:
@@ -36,6 +48,7 @@ def load_excel_tabs(
     if not excel_path.exists():
         raise FileNotFoundError(f"Excel workbook not found: {excel_path}")
 
+    _ensure_openpyxl()
     workbook = pd.ExcelFile(excel_path, engine=engine)
     return {sheet: workbook.parse(sheet_name=sheet) for sheet in workbook.sheet_names}
 
