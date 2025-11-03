@@ -7,7 +7,11 @@ from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-from dags.utils import default_dag_args, log_activation_summary, trigger_metabase_refresh
+from dags.utils import (
+    default_dag_args,
+    log_activation_summary,
+    trigger_metabase_refresh,
+)
 
 
 with DAG(

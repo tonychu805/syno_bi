@@ -48,11 +48,15 @@ def run_ingestion(**_: Dict[str, Any]) -> None:
     repo = repo_root()
     default_source = repo / "raw" / "synosales_2023.1-2024.12.xlsx"
     excel_path = Path(os.environ.get("SYNOSALES_WORKBOOK", default_source))
-    output_dir = Path(os.environ.get("INGESTION_OUTPUT_DIR", repo / "data" / "processed"))
+    default_output = repo / "dbt" / "seeds" / "synology_ingestion"
+    output_dir = Path(os.environ.get("INGESTION_OUTPUT_DIR", default_output))
     fmt = os.environ.get("INGESTION_FORMAT", "csv")
     include_index = os.environ.get("INGESTION_INCLUDE_INDEX", "false").lower() == "true"
 
     LOG.info("Starting ingestion for %s -> %s (%s)", excel_path, output_dir, fmt)
+    if fmt == "csv" and output_dir.exists():
+        for existing in output_dir.glob("*.csv"):
+            existing.unlink(missing_ok=True)
     excel_to_dataframes.load_and_save_excel_tabs(
         excel_path=excel_path,
         output_dir=output_dir,
@@ -114,6 +118,13 @@ def dbt_test_select(target: str) -> None:
     run_dbt(f"dbt test --select {target}")
 
 
+def dbt_seed(select: Optional[str] = None) -> None:
+    command = "dbt seed"
+    if select:
+        command += f" --select {select}"
+    run_dbt(command)
+
+
 # ---------------------------------------------------------------------------
 # Forecast/trend helpers
 # ---------------------------------------------------------------------------
@@ -152,9 +163,13 @@ def run_baseline_forecast(
 def trigger_metabase_refresh(**context: Dict[str, Any]) -> None:
     """Trigger Metabase dashboard refresh via n8n webhook if configured."""
     webhook = os.environ.get("N8N_METABASE_WEBHOOK")
-    cohort = context.get("dag_run").conf.get("cohort") if context.get("dag_run") else None
+    cohort = (
+        context.get("dag_run").conf.get("cohort") if context.get("dag_run") else None
+    )
     if not webhook:
-        LOG.info("Metabase webhook not configured; skipping refresh for cohort %s", cohort)
+        LOG.info(
+            "Metabase webhook not configured; skipping refresh for cohort %s", cohort
+        )
         return
 
     LOG.info("Triggering Metabase refresh via webhook for cohort %s", cohort)
@@ -189,5 +204,7 @@ def default_dag_args() -> Dict[str, Any]:
             if email.strip()
         ],
         "retries": int(os.environ.get("AIRFLOW_TASK_RETRIES", "1")),
-        "retry_delay": timedelta(minutes=int(os.environ.get("AIRFLOW_RETRY_DELAY_MIN", "15"))),
+        "retry_delay": timedelta(
+            minutes=int(os.environ.get("AIRFLOW_RETRY_DELAY_MIN", "15"))
+        ),
     }

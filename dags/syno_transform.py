@@ -11,6 +11,7 @@ from dags.utils import (
     INGESTION_DATASET,
     TRANSFORM_DATASET,
     dbt_run_select,
+    dbt_seed,
     dbt_test_select,
     default_dag_args,
     run_sales_cleaning,
@@ -40,6 +41,11 @@ with DAG(
         python_callable=run_sales_cleaning,
     )
 
+    dbt_seed_ingestion = PythonOperator(
+        task_id="dbt_seed_ingestion",
+        python_callable=lambda **_: dbt_seed("synology_ingestion.*"),
+    )
+
     dbt_run_staging = PythonOperator(
         task_id="dbt_run_staging",
         python_callable=_run_dbt_staging,
@@ -51,4 +57,4 @@ with DAG(
         outlets=[TRANSFORM_DATASET],
     )
 
-    clean_sales >> dbt_run_staging >> dbt_test_staging
+    clean_sales >> dbt_seed_ingestion >> dbt_run_staging >> dbt_test_staging
