@@ -15,6 +15,7 @@ snapshot-paths: ["snapshots"]
 target-path: "target"
 clean-targets:
   - "target"
+  - "target_runtime"
   - "dbt_packages"
 
 models:
@@ -30,3 +31,8 @@ models:
 seeds:
   synology_bi:
     +schema: seeds
+    synology_ingestion:
+      "2023":
+        alias: seed_sales_2023
+      "2024":
+        alias: seed_sales_2024

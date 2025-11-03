@@ -27,6 +27,7 @@ Orchestrate ingestion, preprocessing, feature engineering, forecasting, and tren
 - `prep_reference_data` ensures mapping tables (region, device bays) are present and versioned.
 - `clean_sales` runs `python -m src.ingestion.sales_cleaning` (sheet-filtered) to create consolidated parquet.
 - `dbt_staging` kicks off `dbt run --select staging+`.
+- Ensure Airflow workers expose a writable dbt target path (`DBT_TARGET_PATH_OVERRIDE=/opt/airflow/dbt/target_runtime`) so seed/staging runs avoid container read-only layers.
 - `dbt_tests` executes `dbt test --select staging+`; failures halt downstream work.
 - `dbt_marts` runs `dbt run --select marts+` to build KPI-aligned tables.
 - `dbt_marts` produces global quarterly marts, SVR-RM filtered marts (overall + customer), regional marts, and SVR-DT-DS consumer trend snapshots so forecasting and BI consumers stay in sync.

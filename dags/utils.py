@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import shlex
 import subprocess
 from datetime import timedelta
 from pathlib import Path
@@ -111,6 +113,16 @@ def run_dbt(command: str) -> None:
     dbt_dir = repo / "dbt"
     env = os.environ.copy()
     env.setdefault("DBT_PROFILES_DIR", str(dbt_dir))
+
+    if "DBT_TARGET_PATH_OVERRIDE" in env:
+        target_path = Path(env["DBT_TARGET_PATH_OVERRIDE"])
+        env["DBT_TARGET_PATH"] = env["DBT_TARGET_PATH_OVERRIDE"]
+    else:
+        target_path = dbt_dir / "target_runtime"
+        env.setdefault("DBT_TARGET_PATH", str(target_path))
+
+    target_path.mkdir(parents=True, exist_ok=True)
+
     LOG.info("Executing dbt command: %s", command)
     subprocess.run(
         command,
@@ -118,6 +130,23 @@ def run_dbt(command: str) -> None:
         shell=True,
         env=env,
         check=True,
+    )
+
+
+def cleanup_seed_relations(*, schema: str, relations: Iterable[str]) -> None:
+    """Drop residual seed relations to avoid stale catalog entries."""
+    relation_list = [relation for relation in relations if relation]
+    if not relation_list:
+        LOG.info("No seed relations requested for cleanup; skipping.")
+        return
+
+    args = json.dumps({"schema": schema, "relations": relation_list})
+    quoted_args = shlex.quote(args)
+    LOG.info(
+        "Running dbt cleanup for schema %s with relations %s", schema, relation_list
+    )
+    run_dbt(
+        f"dbt run-operation cleanup_seed_relations --args {quoted_args}"
     )
 
 
@@ -129,8 +158,15 @@ def dbt_test_select(target: str) -> None:
     run_dbt(f"dbt test --select {target}")
 
 
-def dbt_seed(select: Optional[str] = None) -> None:
+def dbt_seed(
+    select: Optional[str] = None,
+    *,
+    cleanup_schema: str = "analytics_seeds",
+    cleanup_relations: Optional[Iterable[str]] = None,
+) -> None:
     command = "dbt seed"
+    if cleanup_relations:
+        cleanup_seed_relations(schema=cleanup_schema, relations=cleanup_relations)
     if select:
         command += f" --select {select}"
     run_dbt(command)

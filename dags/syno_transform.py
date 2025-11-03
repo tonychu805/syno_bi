@@ -44,7 +44,13 @@ with DAG(
     dbt_seed_ingestion = PythonOperator(
         task_id="dbt_seed_ingestion",
         python_callable=lambda **_: dbt_seed(
-            "path:seeds/synology_ingestion path:seeds/mapping_table"
+            "path:seeds/synology_ingestion path:seeds/mapping_table",
+            cleanup_relations=(
+                "2023",
+                "2024",
+                "seed_sales_2023",
+                "seed_sales_2024",
+            ),
         ),
     )
 

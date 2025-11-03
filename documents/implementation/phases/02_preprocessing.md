@@ -20,6 +20,13 @@ Standardize raw tabular exports into clean, typed, and join-ready tables that en
 4. Configure dbt sources, seeds, and exposures so downstream marts and forecasting features inherit consistent lineage for all three question areas
 5. Capture profiling metrics (null ratios, duplicates) and store in dbt docs or operational logs, slicing by forecast cohort, region, and consumer segment
 
+### Sales Seeds Column Retention Policy
+- Stage only the attributes needed for forecasting, BI self-service, and quality gates; drop invoice-only identifiers during staging to prevent join clutter.
+- Column handling for Synology sales seeds:
+  - **Trim**: `PI`, `InvDate`, `ShipDate`, `ItemCode`, `DeliveryFrom`, `ShipTo`, `Comments`, `Currency`, `Price`, `Total`, `T/T Discount`, `Discount`, `source_sheet` unless a downstream reconciliation requires them. These fields either duplicate derived metrics or contain sparse free text.
+  - **Keep**: Core commercial grain (`Customer`, `Product`, `Type`, `sub_cat`, `Country`, mapped region attributes), temporal features (derived `sale_date`, `sale_quarter`), commercial metrics (`Quantity`, `usd_adjusted_total`, `usd_adjusted_price`, `total_cap`), and QA/FX controls (`exchange_rate_to_usd`).
+- Document the retained vs. dropped fields in the preprocessing data dictionary (`documents/implementation/sales_staging_data_dictionary.md`) and refresh whenever new workbook tabs or columns appear.
+
 ## Testing & Validation
 - Unit tests covering edge cases (unexpected categories, missing columns)
 - Property-based checks for numerical ranges using hypothesis or custom assertions

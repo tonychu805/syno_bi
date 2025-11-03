@@ -18,6 +18,7 @@ env/*.env
 # dbt build outputs
 dbt/profiles.yml
 dbt/target/
+dbt/target_runtime/
 dbt/dbt_packages/
 
 # Airflow runtime directories
@@ -46,3 +47,4 @@ infra/pgadmin/
 # dbt seeds snapshots
 dbt/seeds/mapping_table/*.csv
 dbt/seeds/synology_ingestion/*.csv
+output.csv
