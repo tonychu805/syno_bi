@@ -71,6 +71,7 @@ exit
 - Reference staging models (`ref('stg_synology_sales')`) rather than raw sources.
 - Document owners and refresh cadence in YAML.
 - For expensive models, consider incremental strategies (`materialized='incremental'`) once requirements stabilise.
+- Materialise global quarterly marts plus filtered marts for SVR-RM (overall + top customers), regions, and SVR-DT-DS consumer trends; keep cohort filters in shared configs so forecasting and BI stay consistent.
 
 ## 5. Forecasting Layer (Python)
 
@@ -78,8 +79,8 @@ exit
 | --- | --- |
 | Module | `src/forecasting/regression.py` |
 | Task | `train_forecast` in Airflow DAG |
-| Inputs | Aggregated sales history CSVs or dbt outputs |
-| Outputs | Timestamped forecast CSVs + metadata JSON under `data/processed/forecasts/` |
+| Inputs | Aggregated quarterly sales history CSVs or dbt outputs scoped to SVR-RM T1/T2/T3 (overall + top customers) and regional cohorts |
+| Outputs | Timestamped next-quarter SVR-RM and regional forecast CSVs + metadata JSON under `data/processed/forecasts/`; consumer trend summaries persisted alongside forecasts |
 
 ### Execution
 ```bash
@@ -89,8 +90,8 @@ docker compose exec airflow-webserver \
 ```
 
 ### Next Steps
-- Expand feature set by querying dbt marts (e.g., promotions, inventory levels).
-- Track accuracy metrics (MAPE, sMAPE) and store in metadata files.
+- Expand feature set by querying dbt marts (e.g., promotions, inventory levels) tied to SVR-RM and regional performance.
+- Track accuracy metrics (MAPE, sMAPE) for the next-quarter horizon per cohort and store in metadata files; alert if MAPE exceeds 2%.
 
 ## 6. Visualization & Activation
 

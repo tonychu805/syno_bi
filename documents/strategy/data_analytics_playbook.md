@@ -69,9 +69,9 @@ Record findings, especially data quality issues, in analysis notes or `documents
 
 ## 4. Data Cleaning & Feature Engineering
 
-- Implement corrections in dbt models when possible so improvements are reusable.  
+- Implement corrections in dbt models when possible so improvements are reusable, especially for SVR-RM T1/T2/T3, top-customer revenue slices, regional metrics, and SVR-DT-DS trend fields.  
 - For ad-hoc analysis, use pandas transformations but plan to push them upstream if they become standard.  
-- Track changes in dbt YAML docs (column descriptions, tests).
+- Track changes in dbt YAML docs (column descriptions, tests) and confirm cleaned tables retain a ready-to-aggregate quarterly grain that supports the next-quarter sales forecast objective.
 
 ### Common cleaning steps
 1. Standardize SKU/channel names (`UPPER`, trimming).  
@@ -97,7 +97,7 @@ Add a matching test + description to the YAML file.
 
 ## 5. Target Selection & Segmentation
 
-- Define the population of interest (e.g., priority SKUs, regions with new launches).  
+- Define the population of interest (e.g., SVR-RM T1/T2/T3 cohorts, top 5 customers by revenue, regions with new launches, consumer SVR-DT-DS segments).  
 - Use dbt exposures or Metabase segments to save frequently used filters.  
 - Validate target lists with business stakeholders before running forecasts or campaigns.
 
@@ -114,10 +114,12 @@ WHERE product_line = 'NAS'
 
 ## 6. Statistical Modelling / Forecasting
 
-- Start with baseline models (`src/forecasting/regression.py` uses rolling means).  
+- Start with baseline models (`src/forecasting/regression.py` uses rolling means) that deliver a next-quarter forecast with ≤2% error for SVR-RM T1/T2/T3 (overall + top customers) and regional volume/revenue.  
+- Treat SVR-DT-DS consumer trends as analytic outputs (growth, share, renewal signals) and integrate them with forecast storytelling.  
 - Evaluate metrics (MAPE, sMAPE, WAPE).  
 - Document experiments in `documents/model_eval.md` (input features, hyperparameters, performance).  
 - Promote successful models by updating the forecasting module and scheduling in Airflow.
+- Ensure Metabase-facing marts continue to expose the full product catalog; provide clear filters or segments identifying the SVR subset used in modeling.
 
 ### Guidance
 - Maintain train/test splits (e.g., last 3 months as holdout).  

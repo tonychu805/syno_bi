@@ -1,13 +1,13 @@
 # Deployment & Operations Implementation Guide
 
 ## Objective
-Deliver forecasting capabilities into production environments with reliable execution, monitoring, and support processes.
+Deliver next-quarter forecasting capabilities into production environments with reliable execution, monitoring, and support processes.
 
 ## Responsibilities
 - Package codebase for deployment (container, wheel, or scheduled job) with reproducible environments
-- Operate the Airflow + n8n orchestration stack alongside dbt and forecasting services on the Synology NAS Postgres warehouse
+- Operate the Airflow + n8n orchestration stack alongside dbt and forecasting services on the Synology NAS Postgres warehouse so SVR-RM, regional, and consumer trend outputs refresh on schedule
 - Manage configuration, secrets, and infrastructure-as-code for the runtime stack
-- Establish monitoring, alerting, and incident response workflows
+- Establish monitoring, alerting, and incident response workflows covering all cohorts (overall, top customers, regional)
 
 ## Inputs & Outputs
 - Inputs: Pipeline code, infrastructure specs, environment configs, observability requirements

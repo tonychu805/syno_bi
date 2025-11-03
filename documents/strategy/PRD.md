@@ -11,7 +11,8 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 
 ### Objectives
 - Integrate multiple internal and external data sources into a single BI architecture.
-- Develop and deploy predictive models to forecast sales volumes and product demand.
+- Develop and deploy predictive models to forecast next-quarter sales volumes and product demand.
+- Deliver quarterly volume and revenue forecasts for SVR-RM T1/T2/T3 (overall and top 5 customers) and priority regions, while surfacing SVR-DT-DS consumer market trends.
 - Provide commercial and marketing teams with a unified view of execution KPIs, competitive intelligence, and market dynamics.
 - Support the creation of data-backed business cases for new product launches and regional investments.
 
@@ -20,6 +21,7 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 | --- | --- |
 | Forecast accuracy improvement | >= +15% vs manual baseline |
 | Multiple linear regression error (MAPE) | <= 2% |
+| Next-quarter forecast coverage | 100% of priority product & channel segments |
 | Dashboard adoption rate | >= 80% of regional users monthly |
 | Reporting latency reduction | 30% faster refresh cycles |
 | Business case turnaround time | Reduced from 5 days -> 1 day |
@@ -32,7 +34,8 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 - Centralized warehouse storage on **Synology NAS Postgres** with optional cloud-read replica if needed for external stakeholders.
 - Docker-based orchestration and automation for ETL, model retraining, and dashboard refresh workflows using **Apache Airflow (primary)** and **n8n (secondary)** hosted on Synology NAS.
 - Dashboard design and deployment in **Metabase**, connected to the Postgres warehouse.
-- Predictive model creation (sales forecasting, opportunity identification).
+- Predictive model creation (next-quarter sales forecasting, opportunity identification) with emphasis on SVR-RM T1/T2/T3 (overall + top customers), regional demand, and SVR-DT-DS consumer trends.
+- Maintenance of full-catalog marts so Metabase users can explore beyond the SVR focus while forecasts remain SKU-specific.
 - Development of a forecasting and prioritization analytical framework.
 - Business case automation templates for marketing strategy.
 

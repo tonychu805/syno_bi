@@ -3,9 +3,9 @@
 | Index | Phase | Key Focus | Document |
 | --- | --- | --- | --- |
 | 01 | Ingestion | Convert raw Excel worksheets into serialized DataFrames without touching snapshots | [01_ingestion.md](phases/01_ingestion.md) |
-| 02 | Preprocessing | Standardize ingestion outputs and surface clean staging layers with dbt and pandas | [02_preprocessing.md](phases/02_preprocessing.md) |
-| 03 | Feature Engineering | Build deterministic, reusable features capturing temporal signals | [03_feature_engineering.md](phases/03_feature_engineering.md) |
-| 04 | Forecasting | Deliver multiple linear regression forecasts targeting ≤2% MAPE | [04_forecasting.md](phases/04_forecasting.md) |
+| 02 | Preprocessing | Standardize ingestion outputs and surface quarterly-ready layers for SVR-RM T1/T2/T3, regional, and consumer SVR-DT-DS trends | [02_preprocessing.md](phases/02_preprocessing.md) |
+| 03 | Feature Engineering | Build reusable feature sets for SVR-RM forecasts, regional forecasts, and SVR-DT-DS trend insights | [03_feature_engineering.md](phases/03_feature_engineering.md) |
+| 04 | Forecasting | Deliver next-quarter SVR-RM volume/revenue forecasts (overall & top customers) and regional forecasts targeting ≤2% MAPE | [04_forecasting.md](phases/04_forecasting.md) |
 | 05 | Pipelines & Automation | Four-part Airflow topology: ingestion sensors, transform DAG (cleaning + dbt), forecast DAG, and activation hooks (Metabase/webhooks) | [05_pipelines.md](phases/05_pipelines.md) |
 | 06 | Quality Gates | Enforce lint, test, coverage, and data validation standards | [06_quality_gates.md](phases/06_quality_gates.md) |
 | 07 | Outputs & Reporting | Publish Metabase dashboards, forecast tables, and stakeholder-ready summaries | [07_outputs_reporting.md](phases/07_outputs_reporting.md) |

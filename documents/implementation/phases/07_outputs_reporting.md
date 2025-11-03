@@ -1,17 +1,17 @@
 # Outputs & Reporting Implementation Guide
 
 ## Objective
-Communicate model results, business insights, and operational status through curated outputs that stakeholders can interpret and trust.
+Communicate next-quarter SVR-RM T1/T2/T3 forecasts (overall and top customers), regional forecasts, and SVR-DT-DS consumer market trends through curated outputs that stakeholders can interpret and trust.
 
 ## Responsibilities
-- Produce standardized forecast tables, charts, and commentary each run
+- Produce standardized next-quarter forecast tables, charts, and commentary each run for SVR-RM volume/revenue (overall + top customers), regional projections, and SVR-DT-DS consumer trend insights
 - Maintain documentation linking metrics to decisions and downstream consumers
 - Host interactive dashboards in Metabase with governed access controls
 - Ensure outputs are versioned, timestamped, and reproducible
 
 ## Inputs & Outputs
-- Inputs: Forecast artifacts, evaluation metrics, business calendar metadata
-- Outputs: `documents/reports/` summaries, visualizations, CSV extracts for stakeholders, slide-ready tables
+- Inputs: Forecast artifacts focused on the upcoming quarter for SVR-RM cohorts, regional datasets, consumer trend marts, evaluation metrics, business calendar metadata, and reference joins to the all-product mart
+- Outputs: `documents/reports/` summaries, visualizations, CSV extracts for stakeholders, slide-ready tables that connect forecasts and consumer trends with wider catalog context
 
 ## Implementation Steps
 1. Define report templates (Markdown, HTML, or notebook exports) capturing key metrics and narratives

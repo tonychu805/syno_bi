@@ -7,6 +7,7 @@ Stand up a reproducible container environment on the Synology NAS that runs Airf
 - Provision Docker images and compose configuration for orchestration, transformation, and automation workloads.
 - Standardize environment variables, secrets storage, and network topology so services communicate securely.
 - Document build/deploy procedures and lifecycle tasks (start, stop, upgrade, backup).
+- Guarantee the environment supports the quarterly forecasting pipeline, including storage for next-quarter outputs and evaluation logs.
 
 ## Runtime Components
 - **Airflow**: Scheduler, webserver, worker, and triggerer containers sharing a common metadata database.
