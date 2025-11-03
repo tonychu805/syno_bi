@@ -100,7 +100,9 @@ def prepare_quarterly_dataset(
     aggregated["quarter_start"] = aggregated["sale_quarter"].dt.to_timestamp(
         how="start"
     )
-    aggregated["quarter_end"] = aggregated["sale_quarter"].dt.to_timestamp(how="end")
+    aggregated["quarter_end"] = (
+        aggregated["sale_quarter"].dt.to_timestamp(how="end").normalize()
+    )
     aggregated["quarter_total"] = aggregated["quarter_total"].astype(float)
     return aggregated.sort_values(group_fields).reset_index(drop=True)
 
