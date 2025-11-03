@@ -38,7 +38,11 @@ def _repo_root() -> Path:
 
 def load_clean_sales(parquet_path: Optional[Path] = None) -> pd.DataFrame:
     """Load the cleaned Synology sales snapshot from disk."""
-    resolved = Path(parquet_path) if parquet_path else _repo_root() / "data" / "processed" / "synosales_cleaned.parquet"
+    resolved = (
+        Path(parquet_path)
+        if parquet_path
+        else _repo_root() / "data" / "processed" / "synosales_cleaned.parquet"
+    )
     if not resolved.exists():
         raise FileNotFoundError(f"Cleaned sales parquet not found: {resolved}")
     return pd.read_parquet(resolved)
@@ -73,7 +77,9 @@ def prepare_quarterly_dataset(
     if value_column not in working.columns:
         raise ValueError(f"Value column '{value_column}' not present in dataframe.")
 
-    working[value_column] = pd.to_numeric(working[value_column], errors="coerce").fillna(0.0)
+    working[value_column] = pd.to_numeric(
+        working[value_column], errors="coerce"
+    ).fillna(0.0)
 
     segment_columns = tuple(segment_columns or ())
     for column in segment_columns:
@@ -91,18 +97,24 @@ def prepare_quarterly_dataset(
 
     aggregated = _expand_missing_quarters(aggregated, segment_columns)
 
-    aggregated["quarter_start"] = aggregated["sale_quarter"].dt.to_timestamp(how="start")
+    aggregated["quarter_start"] = aggregated["sale_quarter"].dt.to_timestamp(
+        how="start"
+    )
     aggregated["quarter_end"] = aggregated["sale_quarter"].dt.to_timestamp(how="end")
     aggregated["quarter_total"] = aggregated["quarter_total"].astype(float)
     return aggregated.sort_values(group_fields).reset_index(drop=True)
 
 
-def _expand_missing_quarters(df: pd.DataFrame, segment_columns: Sequence[str]) -> pd.DataFrame:
+def _expand_missing_quarters(
+    df: pd.DataFrame, segment_columns: Sequence[str]
+) -> pd.DataFrame:
     """Ensure every segment has contiguous quarters between first and last observation."""
     if df.empty:
         return df
 
-    quarter_range = pd.period_range(df["sale_quarter"].min(), df["sale_quarter"].max(), freq="Q")
+    quarter_range = pd.period_range(
+        df["sale_quarter"].min(), df["sale_quarter"].max(), freq="Q"
+    )
 
     if segment_columns:
         segment_levels = [df[col].unique() for col in segment_columns]
@@ -116,7 +128,11 @@ def _expand_missing_quarters(df: pd.DataFrame, segment_columns: Sequence[str]) -
         )
     else:
         full_index = pd.Index(quarter_range, name="sale_quarter")
-        reindexed = df.set_index("sale_quarter").reindex(full_index, fill_value=0.0).reset_index()
+        reindexed = (
+            df.set_index("sale_quarter")
+            .reindex(full_index, fill_value=0.0)
+            .reset_index()
+        )
 
     return reindexed
 
@@ -143,9 +159,15 @@ def tag_focus_products(
     if product_column not in df.columns:
         raise ValueError(f"Product column '{product_column}' not present in dataframe.")
 
-    focus_list = tuple(focus_products) if focus_products is not None else _resolve_focus_products()
+    focus_list = (
+        tuple(focus_products)
+        if focus_products is not None
+        else _resolve_focus_products()
+    )
     if not focus_list:
-        raise ValueError("Focus product list is empty; provide at least one product identifier.")
+        raise ValueError(
+            "Focus product list is empty; provide at least one product identifier."
+        )
 
     tagged = df.copy()
     tagged[focus_flag_column] = tagged[product_column].isin(focus_list)
@@ -165,8 +187,12 @@ def split_latest_quarter(
         raise ValueError(f"Quarter column '{quarter_column}' not present in dataframe.")
 
     latest_quarter = quarterly_df[quarter_column].max()
-    train = quarterly_df[quarterly_df[quarter_column] < latest_quarter].reset_index(drop=True)
-    test = quarterly_df[quarterly_df[quarter_column] == latest_quarter].reset_index(drop=True)
+    train = quarterly_df[quarterly_df[quarter_column] < latest_quarter].reset_index(
+        drop=True
+    )
+    test = quarterly_df[quarterly_df[quarter_column] == latest_quarter].reset_index(
+        drop=True
+    )
 
     if train.empty or test.empty:
         raise ValueError("Insufficient quarters to create both train and test splits.")

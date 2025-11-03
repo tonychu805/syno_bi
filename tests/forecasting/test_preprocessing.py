@@ -37,7 +37,9 @@ def test_prepare_quarterly_dataset_aggregates_and_fills_quarters() -> None:
     expected = pd.DataFrame(
         {
             "Type": ["Cloud", "Cloud", "Hardware", "Hardware"],
-            "sale_quarter": pd.PeriodIndex(["2023Q1", "2023Q2", "2023Q1", "2023Q2"], freq="Q"),
+            "sale_quarter": pd.PeriodIndex(
+                ["2023Q1", "2023Q2", "2023Q1", "2023Q2"], freq="Q"
+            ),
             "quarter_total": [150.0, 200.0, 200.0, 150.0],
             "quarter_start": pd.to_datetime(
                 ["2023-01-01", "2023-04-01", "2023-01-01", "2023-04-01"]
@@ -55,7 +57,9 @@ def test_split_latest_quarter_returns_expected_partitions() -> None:
     aggregated = pd.DataFrame(
         {
             "Type": ["Cloud", "Cloud", "Hardware", "Hardware"],
-            "sale_quarter": pd.PeriodIndex(["2023Q1", "2023Q2", "2023Q1", "2023Q2"], freq="Q"),
+            "sale_quarter": pd.PeriodIndex(
+                ["2023Q1", "2023Q2", "2023Q1", "2023Q2"], freq="Q"
+            ),
             "quarter_total": [150.0, 200.0, 200.0, 150.0],
         }
     )
