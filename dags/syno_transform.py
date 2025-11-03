@@ -43,7 +43,7 @@ with DAG(
 
     dbt_seed_ingestion = PythonOperator(
         task_id="dbt_seed_ingestion",
-        python_callable=lambda **_: dbt_seed("synology_ingestion.*"),
+        python_callable=lambda **_: dbt_seed("synology_ingestion.* mapping_table.*"),
     )
 
     dbt_run_staging = PythonOperator(

@@ -6,6 +6,7 @@ import os
 import subprocess
 from datetime import timedelta
 from pathlib import Path
+import shutil
 from typing import Any, Dict, Iterable, Optional
 
 from airflow.datasets import Dataset
@@ -52,9 +53,12 @@ def run_ingestion(**_: Dict[str, Any]) -> None:
     output_dir = Path(os.environ.get("INGESTION_OUTPUT_DIR", default_output))
     fmt = os.environ.get("INGESTION_FORMAT", "csv")
     include_index = os.environ.get("INGESTION_INCLUDE_INDEX", "false").lower() == "true"
+    mapping_src = repo / "data" / "mapping_table"
+    mapping_dest = repo / "dbt" / "seeds" / "mapping_table"
 
     LOG.info("Starting ingestion for %s -> %s (%s)", excel_path, output_dir, fmt)
-    if fmt == "csv" and output_dir.exists():
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if fmt == "csv":
         for existing in output_dir.glob("*.csv"):
             existing.unlink(missing_ok=True)
     excel_to_dataframes.load_and_save_excel_tabs(
@@ -63,6 +67,13 @@ def run_ingestion(**_: Dict[str, Any]) -> None:
         fmt=fmt,
         include_index=include_index,
     )
+
+    if mapping_src.exists():
+        mapping_dest.mkdir(parents=True, exist_ok=True)
+        for existing in mapping_dest.glob("*.csv"):
+            existing.unlink(missing_ok=True)
+        for csv_path in mapping_src.glob("*.csv"):
+            shutil.copy(csv_path, mapping_dest / csv_path.name)
 
 
 def run_sales_cleaning(**_: Dict[str, Any]) -> None:
