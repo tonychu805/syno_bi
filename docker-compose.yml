@@ -24,6 +24,7 @@ services:
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
+      - ./data/mapping_table:/opt/airflow/data/mapping_table
     command: >
       bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && exec airflow webserver"
     depends_on:
@@ -53,6 +54,7 @@ services:
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
+      - ./data/mapping_table:/opt/airflow/data/mapping_table
     command: >
       bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && exec airflow scheduler"
     depends_on:
@@ -84,6 +86,7 @@ services:
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
+      - ./data/mapping_table:/opt/airflow/data/mapping_table
     command: >
       bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && exec airflow triggerer"
     depends_on:
@@ -115,6 +118,7 @@ services:
       - ./data/raw:/opt/airflow/raw
       - ./data/raw:/opt/airflow/data/raw
       - ./data/processed:/opt/airflow/data/processed
+      - ./data/mapping_table:/opt/airflow/data/mapping_table
     command: >
       bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && exec airflow celery worker --concurrency 4"
     depends_on:
