@@ -97,12 +97,15 @@ def prepare_quarterly_dataset(
 
     aggregated = _expand_missing_quarters(aggregated, segment_columns)
 
-    aggregated["quarter_start"] = aggregated["sale_quarter"].dt.to_timestamp(
-        how="start"
-    )
-    aggregated["quarter_end"] = (
-        aggregated["sale_quarter"].dt.to_timestamp(how="end").normalize()
-    )
+    quarter_start = aggregated["sale_quarter"].dt.to_timestamp(how="start")
+    quarter_end = aggregated["sale_quarter"].dt.to_timestamp(how="end")
+
+    aggregated["quarter_start"] = pd.Series(
+        quarter_start, index=aggregated.index
+    ).dt.normalize()
+    aggregated["quarter_end"] = pd.Series(
+        quarter_end, index=aggregated.index
+    ).dt.normalize()
     aggregated["quarter_total"] = aggregated["quarter_total"].astype(float)
     return aggregated.sort_values(group_fields).reset_index(drop=True)
 
