@@ -29,4 +29,4 @@ with combined as (
 select *
 from combined
 where sale_date is not null
-  and sku is not null;
+  and sku is not null
