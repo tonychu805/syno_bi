@@ -43,3 +43,6 @@ data/processed
 infra/n8n/
 infra/postgres/data/
 infra/pgadmin/
+# dbt seeds snapshots
+dbt/seeds/mapping_table/*.csv
+dbt/seeds/synology_ingestion/*.csv
