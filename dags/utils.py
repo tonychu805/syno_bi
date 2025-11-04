@@ -11,6 +11,11 @@ from pathlib import Path
 import shutil
 from typing import Any, Dict, Iterable, Optional
 
+import pandas as pd
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
+from sqlalchemy.exc import SQLAlchemyError
+
 from airflow.datasets import Dataset
 from airflow.utils.log.logging_mixin import LoggingMixin
 
@@ -200,6 +205,214 @@ def run_baseline_forecast(
     if extra_sources:
         for src in extra_sources:
             LOG.info("Extra source considered for cohort %s: %s", cohort, src)
+
+
+def load_forecast_to_postgres(
+    *,
+    cohort: str,
+    table: str = "forecast_overall",
+    schema: str = "analytics",
+    model_name: str = "baseline",
+    model_version: str = "rolling_mean_v1",
+) -> None:
+    """Append the latest forecast CSV into the warehouse."""
+
+    repo = repo_root()
+    forecasts_dir = repo / "data" / "processed" / "forecasts"
+    csv_paths = sorted(forecasts_dir.glob("baseline_forecast_*.csv"))
+    if not csv_paths:
+        LOG.warning("No forecast CSVs found in %s; skipping load.", forecasts_dir)
+        return
+
+    latest_csv = csv_paths[-1]
+    run_id = latest_csv.stem.replace("baseline_forecast_", "")
+    LOG.info(
+        "Loading forecast run %s from %s into %s.%s",
+        run_id,
+        latest_csv,
+        schema,
+        table,
+    )
+
+    df = pd.read_csv(latest_csv)
+    if df.empty:
+        LOG.warning("Forecast CSV %s is empty; skipping load.", latest_csv)
+        return
+
+    df["forecast_run_id"] = run_id
+    df["cohort"] = cohort
+    df["model_name"] = model_name
+    df["model_version"] = model_version
+    df["forecast_date"] = pd.to_datetime(df["forecast_date"], errors="coerce")
+    df["forecast_quantity"] = pd.to_numeric(df["forecast_quantity"], errors="coerce")
+    df["forecast_revenue"] = pd.to_numeric(df["forecast_revenue"], errors="coerce")
+    df["sale_month"] = df["forecast_date"].dt.to_period("M").dt.to_timestamp("M")
+    df["created_at"] = pd.Timestamp.now(tz="UTC")
+    df = df.dropna(subset=["forecast_date"])
+
+    cleaned_path = repo / "data" / "processed" / "synosales_cleaned.parquet"
+    product_columns = {
+        "product_name": "Product",
+        "product_type": "Type",
+        "product_subcategory": "sub_cat",
+    }
+    actual_columns = None
+    if cleaned_path.exists():
+        try:
+            cleaned = pd.read_parquet(cleaned_path)
+            cleaned["InvDate"] = pd.to_datetime(cleaned["InvDate"], errors="coerce")
+            cleaned = cleaned.dropna(subset=["InvDate"])
+            cleaned["sale_month"] = cleaned["InvDate"].dt.to_period("M").dt.to_timestamp("M")
+            cleaned["channel"] = cleaned.get("source_sheet", pd.Series(index=cleaned.index, dtype="object")).fillna("synology_sales")
+            sku_series = cleaned.get("ItemCode").astype("string").str.strip()
+            product_series = cleaned.get("Product").astype("string").str.strip()
+            cleaned["sku"] = sku_series.fillna(product_series).fillna("UNSPECIFIED")
+            revenue_field = "usd_adjusted_total" if "usd_adjusted_total" in cleaned.columns else "Total"
+            aggregated = (
+                cleaned.groupby(["sale_month", "channel", "sku"], dropna=False)
+                .agg(
+                    actual_quantity=("Quantity", "sum"),
+                    actual_revenue=(revenue_field, "sum"),
+                    **{
+                        name: (col, "first")
+                        for name, col in product_columns.items()
+                        if col in cleaned.columns
+                    },
+                )
+                .reset_index()
+            )
+            actual_columns = aggregated
+        except (ValueError, FileNotFoundError, OSError, SQLAlchemyError) as exc:
+            LOG.warning("Unable to enrich forecast with actuals: %s", exc)
+
+    if actual_columns is not None:
+        df = df.merge(
+            actual_columns,
+            how="left",
+            left_on=["sale_month", "channel", "sku"],
+            right_on=["sale_month", "channel", "sku"],
+        )
+    else:
+        df["actual_quantity"] = pd.NA
+        df["actual_revenue"] = pd.NA
+        for name in product_columns:
+            df[name] = pd.NA
+
+    df["actual_quantity"] = pd.to_numeric(df.get("actual_quantity"), errors="coerce")
+    df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue"), errors="coerce")
+
+    for display, column in product_columns.items():
+        if display not in df.columns:
+            df[display] = pd.NA
+
+    df["forecast_date"] = pd.to_datetime(df["forecast_date"], errors="coerce").dt.date
+    df["sale_month"] = pd.to_datetime(df.get("sale_month"), errors="coerce")
+    df["sale_month"] = df["sale_month"].dt.to_period("M").dt.to_timestamp("M").dt.date
+
+    columns = [
+        "forecast_run_id",
+        "cohort",
+        "model_name",
+        "model_version",
+        "sku",
+        "channel",
+        "sale_month",
+        "forecast_date",
+        "forecast_quantity",
+        "forecast_revenue",
+        "actual_quantity",
+        "actual_revenue",
+        "product_name",
+        "product_type",
+        "product_subcategory",
+        "created_at",
+    ]
+    df = df.reindex(columns=columns)
+
+    connection_url = URL.create(
+        drivername="postgresql+psycopg2",
+        username=os.environ.get("WAREHOUSE_USER", "admin"),
+        password=os.environ.get("WAREHOUSE_PASSWORD", "Black17998~"),
+        host=os.environ.get("WAREHOUSE_HOST", "postgres"),
+        port=int(os.environ.get("WAREHOUSE_PORT", "5432")),
+        database=os.environ.get("WAREHOUSE_DB", "syno_bi"),
+    )
+    engine = create_engine(connection_url)
+
+    create_schema_stmt = text(f"create schema if not exists {schema}")
+    create_table_stmt = text(
+        f"""
+        create table if not exists {schema}.{table} (
+            forecast_run_id text not null,
+            cohort text not null,
+            model_name text not null,
+            model_version text not null,
+            sku text,
+            channel text,
+            sale_month date,
+            forecast_date date,
+            forecast_quantity numeric,
+            forecast_revenue numeric,
+            actual_quantity numeric,
+            actual_revenue numeric,
+            product_name text,
+            product_type text,
+            product_subcategory text,
+            created_at timestamptz not null default now()
+        )
+        """
+    )
+
+    delete_stmt = text(
+        f"""
+        delete from {schema}.{table}
+        where forecast_run_id = :forecast_run_id
+          and cohort = :cohort
+          and model_name = :model_name
+          and model_version = :model_version
+        """
+    )
+
+    add_column_statements = [
+        f"alter table {schema}.{table} add column if not exists sale_month date",
+        f"alter table {schema}.{table} add column if not exists actual_quantity numeric",
+        f"alter table {schema}.{table} add column if not exists actual_revenue numeric",
+        f"alter table {schema}.{table} add column if not exists product_name text",
+        f"alter table {schema}.{table} add column if not exists product_type text",
+        f"alter table {schema}.{table} add column if not exists product_subcategory text",
+    ]
+
+    with engine.begin() as conn:
+        conn.execute(create_schema_stmt)
+        conn.execute(create_table_stmt)
+        for statement in add_column_statements:
+            conn.execute(text(statement))
+        conn.execute(
+            delete_stmt,
+            {
+                "forecast_run_id": run_id,
+                "cohort": cohort,
+                "model_name": model_name,
+                "model_version": model_version,
+            },
+        )
+        df.to_sql(
+            table,
+            conn,
+            schema=schema,
+            if_exists="append",
+            index=False,
+            method="multi",
+        )
+
+    LOG.info(
+        "Forecast run %s (%s/%s) loaded into %s.%s",
+        run_id,
+        model_name,
+        model_version,
+        schema,
+        table,
+    )
 
 
 # ---------------------------------------------------------------------------

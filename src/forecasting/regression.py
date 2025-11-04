@@ -7,11 +7,17 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+FORECAST_HOLDOUT_START = pd.Timestamp(
+    os.environ.get("FORECAST_HOLDOUT_START", "2024-10-01")
+).tz_localize(None)
+FORECAST_HORIZON_MONTHS = int(os.environ.get("FORECAST_HORIZON_MONTHS", "3"))
+FORECAST_ROLLING_WINDOW = int(os.environ.get("FORECAST_ROLLING_WINDOW", "3"))
 
 
 def _repo_root() -> Path:
@@ -138,6 +144,7 @@ def _load_sales_history_from_csv(files: Iterable[Path]) -> pd.DataFrame:
 
     combined = pd.concat(frames, ignore_index=True)
     combined = combined.dropna(subset=["sale_date"])
+    combined["quantity"] = combined["quantity"].clip(lower=0)
     return combined
 
 
@@ -152,39 +159,73 @@ def _load_sales_history(files: Iterable[Path], parquet_path: Optional[Path]) -> 
     return _load_sales_history_from_csv(files)
 
 
-def _create_forecast_baseline(sales_history: pd.DataFrame) -> pd.DataFrame:
-    sales_history = sales_history.sort_values("sale_date")
-    grouped = (
-        sales_history.groupby(["sku", "channel", "sale_date"], as_index=False)
+def _normalize_month_end(timestamp: pd.Timestamp | datetime) -> pd.Timestamp:
+    return pd.Timestamp(timestamp).to_period("M").to_timestamp("M")
+
+
+def _prepare_monthly_history(sales_history: pd.DataFrame) -> pd.DataFrame:
+    history = sales_history.copy()
+    history["sale_month"] = history["sale_date"].apply(_normalize_month_end)
+    monthly = (
+        history.groupby(["sku", "channel", "sale_month"], as_index=False)
         .agg(quantity=("quantity", "sum"), revenue=("revenue", "sum"))
-        .sort_values("sale_date")
+        .sort_values("sale_month")
     )
+    return monthly
 
-    grouped["rolling_quantity"] = grouped.groupby(["sku", "channel"])[
-        "quantity"
-    ].transform(lambda s: s.rolling(window=3, min_periods=1).mean())
-    grouped["rolling_revenue"] = grouped.groupby(["sku", "channel"])[
-        "revenue"
-    ].transform(lambda s: s.rolling(window=3, min_periods=1).mean())
 
-    forecasts = []
-    for (sku, channel), history in grouped.groupby(["sku", "channel"]):
-        history = history.sort_values("sale_date")
-        if history.empty:
-            continue
-        next_date = history["sale_date"].max() + pd.offsets.MonthEnd(1)
-        forecasts.append(
-            {
-                "sku": sku,
-                "channel": channel,
-                "forecast_date": next_date.normalize(),
-                "forecast_quantity": float(history["rolling_quantity"].iloc[-1]),
-                "forecast_revenue": float(history["rolling_revenue"].iloc[-1]),
-            }
+def _future_months(start: pd.Timestamp, horizon: int) -> List[pd.Timestamp]:
+    base = _normalize_month_end(start)
+    return [base + pd.offsets.MonthEnd(i + 1) for i in range(horizon)]
+
+
+def _create_forecast_baseline(sales_history: pd.DataFrame) -> pd.DataFrame:
+    monthly_history = _prepare_monthly_history(sales_history)
+    if monthly_history.empty:
+        raise ValueError("Sales history is empty; cannot compute baseline forecast.")
+
+    cutoff = _normalize_month_end(FORECAST_HOLDOUT_START)
+    train_history = monthly_history[
+        monthly_history["sale_month"] < cutoff
+    ].copy()
+    if train_history.empty:
+        raise ValueError(
+            "No training data available before holdout start %s" % cutoff
         )
 
+    future_months = _future_months(cutoff, FORECAST_HORIZON_MONTHS)
+    forecasts = []
+
+    for (sku, channel), history in train_history.groupby(["sku", "channel"]):
+        history = history.sort_values("sale_month")
+        if history.empty:
+            continue
+        last_month = _normalize_month_end(history["sale_month"].max())
+        rolling_quantity = history["quantity"].rolling(
+            window=FORECAST_ROLLING_WINDOW, min_periods=1
+        ).mean()
+        rolling_revenue = history["revenue"].rolling(
+            window=FORECAST_ROLLING_WINDOW, min_periods=1
+        ).mean()
+        baseline_quantity = float(rolling_quantity.iloc[-1])
+        baseline_revenue = float(rolling_revenue.iloc[-1])
+
+        for forecast_date in future_months:
+            if forecast_date > last_month:
+                forecasts.append(
+                    {
+                        "sku": sku,
+                        "channel": channel,
+                        "forecast_date": forecast_date,
+                        "forecast_quantity": baseline_quantity,
+                        "forecast_revenue": baseline_revenue,
+                    }
+                )
+
     if not forecasts:
-        raise ValueError("Unable to derive forecasts from the provided sales history.")
+        raise ValueError(
+            "Unable to derive forecasts; no eligible cohorts before holdout start."
+        )
 
     return pd.DataFrame(forecasts)
 
@@ -216,7 +257,9 @@ def train_regression_forecast(
     metadata = {
         "generated_at": timestamp,
         "method": "rolling_mean_baseline",
-        "window": 3,
+        "rolling_window_months": FORECAST_ROLLING_WINDOW,
+        "holdout_start": FORECAST_HOLDOUT_START.strftime("%Y-%m-%d"),
+        "forecast_horizon_months": FORECAST_HORIZON_MONTHS,
         "source_files": [str(path) for path in files],
         "record_count": len(forecasts),
     }

@@ -32,12 +32,12 @@ with combined as (
         '{{ sheet_name }}'::text as source_sheet,
         case
             when regexp_match(trim("Quantity"::text), '^-?\d+(?:\.\d+)?$') is not null
-                then trim("Quantity"::text)::numeric
+                then greatest(trim("Quantity"::text)::numeric, 0)
             else null
         end as quantity,
         case
             when regexp_match(trim("Total"::text), '^-?\d+(?:\.\d+)?$') is not null
-                then trim("Total"::text)::numeric
+                then greatest(trim("Total"::text)::numeric, 0)
             else null
         end as revenue
     from {{ source(source_schema, table_name) }}

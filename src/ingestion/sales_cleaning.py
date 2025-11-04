@@ -232,14 +232,16 @@ def _clean_sales_frame(config: SalesCleaningConfig) -> pd.DataFrame:
     frame = frame.rename(columns=str.strip)
     frame = _normalise_missing(frame)
     frame = _coerce_numeric_columns(frame)
+    if "Quantity" in frame.columns:
+        frame = frame[frame["Quantity"].ge(0) | frame["Quantity"].isna()].copy()
+    if "Total" in frame.columns:
+        frame = frame[frame["Total"].ge(0) | frame["Total"].isna()].copy()
     frame = frame.dropna(
         subset=[column for column in CRITICAL_GRAIN_COLUMNS if column in frame.columns]
     )
-    if "Total" in frame.columns:
-        frame = frame[frame["Total"] >= 0].copy()
-
     if "Quantity" in frame.columns:
         frame["Quantity"] = frame["Quantity"].fillna(0)
+        frame["Quantity"] = frame["Quantity"].clip(lower=0)
 
     if "Currency" in frame.columns:
         _fill_with_mode(frame, "Currency")

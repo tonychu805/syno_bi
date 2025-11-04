@@ -12,6 +12,7 @@ from dags.utils import (
     COHORT_SVR_RM,
     TRANSFORM_DATASET,
     default_dag_args,
+    load_forecast_to_postgres,
     run_baseline_forecast,
 )
 
@@ -35,6 +36,17 @@ with DAG(
         python_callable=_train_svr_rm,
     )
 
+    load_forecast = PythonOperator(
+        task_id="load_forecast_to_postgres",
+        python_callable=load_forecast_to_postgres,
+        op_kwargs={
+            "cohort": COHORT_SVR_RM,
+            "table": "forecast_overall",
+            "model_name": "baseline",
+            "model_version": "rolling_mean_v1",
+        },
+    )
+
     trigger_activation = TriggerDagRunOperator(
         task_id="trigger_activation",
         trigger_dag_id="syno_activation",
@@ -42,4 +54,4 @@ with DAG(
         reset_dag_run=True,
     )
 
-    train_forecast >> trigger_activation
+    train_forecast >> load_forecast >> trigger_activation
