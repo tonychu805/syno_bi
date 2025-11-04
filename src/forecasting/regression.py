@@ -14,14 +14,73 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def _repo_root() -> Path:
+    return Path(os.environ.get("SYNOBI_REPO_ROOT", Path(__file__).resolve().parents[2]))
+
+
 def _processed_dir() -> Path:
-    repo_root = Path(
-        os.environ.get("SYNOBI_REPO_ROOT", Path(__file__).resolve().parents[2])
+    return _repo_root() / "data" / "processed"
+
+
+def _cleaned_parquet_path() -> Path:
+    return _repo_root() / "data" / "processed" / "synosales_cleaned.parquet"
+
+
+def _load_sales_history_from_parquet(path: Path) -> pd.DataFrame:
+    logger.info("Loading cleaned sales history from parquet: %s", path)
+    frame = pd.read_parquet(path)
+
+    working = frame.copy()
+    if "sale_date" in working.columns:
+        working["sale_date"] = pd.to_datetime(working["sale_date"], errors="coerce")
+    elif "InvDate" in working.columns:
+        working["sale_date"] = pd.to_datetime(working["InvDate"], errors="coerce")
+    else:
+        raise ValueError("Cleaned parquet is missing a sale date column (InvDate).")
+
+    sku_series = None
+    if "ItemCode" in working.columns:
+        sku_series = working["ItemCode"].astype("string").str.strip()
+    if "Product" in working.columns:
+        product_series = working["Product"].astype("string").str.strip()
+        sku_series = (
+            sku_series.fillna(product_series) if sku_series is not None else product_series
+        )
+    if sku_series is None:
+        raise ValueError("Cleaned parquet is missing both ItemCode and Product columns.")
+
+    if "source_sheet" in working.columns:
+        channel_series = working["source_sheet"].astype("string").str.strip()
+        channel_series = channel_series.fillna("synology_sales")
+    else:
+        channel_series = pd.Series("synology_sales", index=working.index)
+
+    quantity = pd.to_numeric(working.get("Quantity"), errors="coerce").fillna(0.0)
+    revenue_source = (
+        working.get("usd_adjusted_total")
+        if "usd_adjusted_total" in working.columns
+        else working.get("Total")
     )
-    return repo_root / "data" / "processed"
+    if revenue_source is not None:
+        revenue = pd.to_numeric(revenue_source, errors="coerce").fillna(0.0)
+    else:
+        revenue = pd.Series(0.0, index=working.index)
+
+    tidy = pd.DataFrame(
+        {
+            "sale_date": working["sale_date"],
+            "sku": sku_series.fillna("UNSPECIFIED").astype(str),
+            "channel": channel_series.astype(str),
+            "quantity": quantity,
+            "revenue": revenue,
+        }
+    )
+
+    tidy = tidy.dropna(subset=["sale_date"])
+    return tidy
 
 
-def _load_sales_history(files: Iterable[Path]) -> pd.DataFrame:
+def _load_sales_history_from_csv(files: Iterable[Path]) -> pd.DataFrame:
     frames = []
     for path in files:
         try:
@@ -82,6 +141,17 @@ def _load_sales_history(files: Iterable[Path]) -> pd.DataFrame:
     return combined
 
 
+def _load_sales_history(files: Iterable[Path], parquet_path: Optional[Path]) -> pd.DataFrame:
+    if parquet_path is not None and parquet_path.exists():
+        return _load_sales_history_from_parquet(parquet_path)
+    if parquet_path is not None:
+        logger.warning(
+            "Cleaned parquet not found at %s; falling back to CSV sales history.",
+            parquet_path,
+        )
+    return _load_sales_history_from_csv(files)
+
+
 def _create_forecast_baseline(sales_history: pd.DataFrame) -> pd.DataFrame:
     sales_history = sales_history.sort_values("sale_date")
     grouped = (
@@ -130,7 +200,10 @@ def train_regression_forecast(
 
     history_dir = sales_history_dir or _processed_dir()
     files = sorted(Path(history_dir).glob(file_glob))
-    sales_history = _load_sales_history(files)
+
+    parquet_env = os.environ.get("SALES_HISTORY_PARQUET")
+    parquet_path = Path(parquet_env) if parquet_env else _cleaned_parquet_path()
+    sales_history = _load_sales_history(files, parquet_path if parquet_path.exists() else None)
 
     forecasts = _create_forecast_baseline(sales_history)
 

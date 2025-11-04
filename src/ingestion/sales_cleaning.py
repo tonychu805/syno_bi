@@ -9,6 +9,20 @@ from typing import Dict, Iterable, Mapping, Sequence
 
 import pandas as pd
 
+NULL_EQUIVALENTS = {"NULL", "null"}
+STRING_TRIM_COLUMNS = (
+    "Customer",
+    "Product",
+    "Type",
+    "sub_cat",
+    "ItemCode",
+    "DeliveryFrom",
+    "ShipTo",
+    "Currency",
+)
+CRITICAL_GRAIN_COLUMNS = ("Customer", "Product", "Total")
+DROP_COLUMNS = ("Comments", "Unit")
+
 from .product_classification import assign_product_categories, attach_drive_capacity
 
 DEFAULT_EXCHANGE_RATES: Dict[str, float] = {
@@ -73,6 +87,65 @@ def _load_workbook(
     return pd.concat(frames, ignore_index=True, sort=False)
 
 
+def _normalise_missing(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return ``frame`` with common null-like tokens standardised."""
+
+    cleaned = frame.replace(
+        {r"^\s*$": pd.NA, **{token: pd.NA for token in NULL_EQUIVALENTS}}, regex=True
+    )
+    for column in STRING_TRIM_COLUMNS:
+        if column in cleaned.columns:
+            cleaned[column] = cleaned[column].astype("string").str.strip()
+    return cleaned
+
+
+def _coerce_numeric_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Coerce numeric columns used downstream."""
+
+    for column in ("Total", "Price", "Quantity"):
+        if column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame
+
+
+def _fill_with_mode(frame: pd.DataFrame, column: str) -> None:
+    """Fill nulls in ``column`` with its modal value."""
+
+    if column not in frame.columns:
+        return
+    mode_series = frame[column].dropna().mode()
+    if not mode_series.empty:
+        frame[column] = frame[column].fillna(mode_series.iloc[0])
+
+
+def _drop_low_value_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Drop columns deemed non-essential for downstream analytics."""
+
+    existing = [column for column in DROP_COLUMNS if column in frame.columns]
+    if existing:
+        return frame.drop(columns=existing)
+    return frame
+
+
+def _fill_region_from_country(frame: pd.DataFrame) -> None:
+    """Infer missing regions from the most common value per country."""
+
+    if "Country" not in frame.columns or "Region" not in frame.columns:
+        return
+
+    valid_regions = frame.loc[frame["Region"].notna(), ["Country", "Region"]]
+    if valid_regions.empty:
+        return
+
+    region_map = (
+        valid_regions.groupby("Country")["Region"]
+        .agg(lambda series: series.mode().iloc[0] if not series.mode().empty else pd.NA)
+        .dropna()
+    )
+    if not region_map.empty:
+        frame["Region"] = frame["Region"].fillna(frame["Country"].map(region_map))
+
+
 def _strip_parenthetical_products(frame: pd.DataFrame) -> pd.Series:
     """Remove leading parenthesised prefixes from the ``Product`` column."""
 
@@ -92,6 +165,17 @@ def _apply_currency_conversion(
         }
     )
     merged = frame.merge(rate_frame, on="Currency", how="left")
+
+    if merged["exchange_rate_to_usd"].isna().any():
+        merged["exchange_rate_to_usd"] = merged["exchange_rate_to_usd"].fillna(
+            merged["Currency"].map(currency_rates)
+        )
+        if merged["exchange_rate_to_usd"].isna().any():
+            default_rate = sum(currency_rates.values()) / len(currency_rates)
+            merged["exchange_rate_to_usd"] = merged["exchange_rate_to_usd"].fillna(
+                default_rate
+            )
+        merged["exchange_rate_to_usd"] = merged["exchange_rate_to_usd"].fillna(1.0)
 
     merged["usd_adjusted_price"] = merged["Price"] * merged["exchange_rate_to_usd"]
     merged["usd_adjusted_total"] = merged["Total"] * merged["exchange_rate_to_usd"]
@@ -146,19 +230,60 @@ def _clean_sales_frame(config: SalesCleaningConfig) -> pd.DataFrame:
     )
 
     frame = frame.rename(columns=str.strip)
-    frame = frame[frame["Total"] >= 0].copy()
+    frame = _normalise_missing(frame)
+    frame = _coerce_numeric_columns(frame)
+    frame = frame.dropna(
+        subset=[column for column in CRITICAL_GRAIN_COLUMNS if column in frame.columns]
+    )
+    if "Total" in frame.columns:
+        frame = frame[frame["Total"] >= 0].copy()
+
+    if "Quantity" in frame.columns:
+        frame["Quantity"] = frame["Quantity"].fillna(0)
+
+    if "Currency" in frame.columns:
+        _fill_with_mode(frame, "Currency")
+
     frame.loc[:, "Product"] = _strip_parenthetical_products(frame)
 
     frame = assign_product_categories(
         frame, product_column="Product", type_column="Type", subtype_column="sub_cat"
     )
     frame = _apply_currency_conversion(frame, config.currency_rates)
+
+    if "exchange_rate_to_usd" in frame.columns and frame[
+        "exchange_rate_to_usd"
+    ].isna().any():
+        _fill_with_mode(frame, "exchange_rate_to_usd")
+        frame["exchange_rate_to_usd"] = frame["exchange_rate_to_usd"].fillna(1.0)
+        if "Price" in frame.columns:
+            frame["usd_adjusted_price"] = frame["Price"] * frame["exchange_rate_to_usd"]
+        if "Total" in frame.columns:
+            frame["usd_adjusted_total"] = frame["Total"] * frame["exchange_rate_to_usd"]
+
+    if "InvDate" in frame.columns:
+        frame["InvDate"] = pd.to_datetime(frame["InvDate"], errors="coerce")
+
+    if "ShipDate" in frame.columns:
+        frame["ShipDate"] = pd.to_datetime(frame["ShipDate"], errors="coerce")
+
+    if "ShipTo" in frame.columns:
+        frame["ShipTo"] = frame["ShipTo"].fillna("UNKNOWN")
+
+    if "ItemCode" in frame.columns and "Product" in frame.columns:
+        frame["ItemCode"] = frame["ItemCode"].fillna(frame["Product"])
+        frame["ItemCode"] = frame["ItemCode"].fillna("UNSPECIFIED")
+
+    frame = _drop_low_value_columns(frame)
+
     frame.loc[:, "Year"] = pd.to_datetime(frame["InvDate"], errors="coerce").dt.year
 
     country_map_path = config.country_mapping_path
     if country_map_path is None and DEFAULT_COUNTRY_MAPPING_PATH.exists():
         country_map_path = DEFAULT_COUNTRY_MAPPING_PATH
     frame = _map_country_regions(frame, country_map_path)
+    _fill_region_from_country(frame)
+    _fill_with_mode(frame, "Region")
 
     frame = attach_drive_capacity(frame)
     device_bay_path = config.device_to_bay_path

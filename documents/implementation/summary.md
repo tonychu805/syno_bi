@@ -10,4 +10,5 @@
 | 06 | Quality Gates | Enforce lint, test, coverage, and data validation standards | [06_quality_gates.md](phases/06_quality_gates.md) |
 | 07 | Outputs & Reporting | Publish Metabase dashboards, forecast tables, and stakeholder-ready summaries | [07_outputs_reporting.md](phases/07_outputs_reporting.md) |
 | 08 | Deployment & Ops | Package, deploy, and monitor production execution with on-call readiness | [08_deployment_ops.md](phases/08_deployment_ops.md) |
+| 09 | Forecast Consumers | Final deliverables portfolio (BI dashboards, forecast tables, stakeholder reports) | [09_outputs_and_reporting.md](phases/09_outputs_and_reporting.md) |
 | Ref | Platform Environment | Define Docker runtime on Synology NAS for Airflow, dbt, and n8n orchestration | [platform_environment.md](../reference/platform_environment.md) |

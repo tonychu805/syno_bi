@@ -48,3 +48,4 @@ infra/pgadmin/
 dbt/seeds/mapping_table/*.csv
 dbt/seeds/synology_ingestion/*.csv
 output.csv
+notebook_outputs/

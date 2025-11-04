@@ -21,6 +21,8 @@ with combined as (
                 then trim("InvDate"::text)::date
             else null
         end as sale_date,
+        cast(nullif(trim("ItemCode"::text), '') as text) as item_code,
+        cast(nullif(trim("Product"::text), '') as text) as product_name,
         cast(
             coalesce(
                 nullif(trim("ItemCode"::text), ''),
@@ -47,6 +49,8 @@ with combined as (
 
 select
     sale_date,
+    item_code,
+    product_name,
     sku,
     source_sheet as channel,
     quantity,

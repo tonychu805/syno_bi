@@ -24,6 +24,10 @@ models:
         description: "Date the sale occurred (UTC)."
         tests:
           - not_null
+      - name: item_code
+        description: "Raw SKU identifier when provided by the workbook."
+      - name: product_name
+        description: "Product description supplied in the workbook."
       - name: sku
         description: "Inventory SKU identifier."
         tests:
