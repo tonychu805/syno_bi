@@ -18,7 +18,10 @@ from dags.utils import (
 
 
 def _train_svr_rm(**_: dict) -> None:
-    run_baseline_forecast(cohort=COHORT_SVR_RM)
+    run_baseline_forecast(
+        cohort=COHORT_SVR_RM,
+        model_name="sarimax_svr_rm",
+    )
 
 
 with DAG(
@@ -42,8 +45,8 @@ with DAG(
         op_kwargs={
             "cohort": COHORT_SVR_RM,
             "table": "forecast_overall",
-            "model_name": "baseline",
-            "model_version": "rolling_mean_v1",
+            "model_name": "sarimax_svr_rm",
+            "model_version": "sarimax_v1",
         },
     )
 

@@ -9,6 +9,8 @@ from typing import Dict, Iterable, Mapping, Sequence
 
 import pandas as pd
 
+from .product_classification import assign_product_categories, attach_drive_capacity
+
 NULL_EQUIVALENTS = {"NULL", "null"}
 STRING_TRIM_COLUMNS = (
     "Customer",
@@ -22,8 +24,6 @@ STRING_TRIM_COLUMNS = (
 )
 CRITICAL_GRAIN_COLUMNS = ("Customer", "Product", "Total")
 DROP_COLUMNS = ("Comments", "Unit")
-
-from .product_classification import assign_product_categories, attach_drive_capacity
 
 DEFAULT_EXCHANGE_RATES: Dict[str, float] = {
     "AUD": 0.63,

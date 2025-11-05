@@ -20,6 +20,10 @@ from airflow.datasets import Dataset
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 from src.forecasting.regression import train_regression_forecast
+from src.forecasting.sarimax import (
+    DEFAULT_PRESERVED_COLUMNS as DEFAULT_SARIMAX_COLUMNS,
+)
+from src.forecasting.sarimax import train_sarimax_forecast
 from src.ingestion import (
     SalesCleaningConfig,
     excel_to_dataframes,
@@ -247,15 +251,57 @@ def run_baseline_forecast(
     file_glob: str = "*sales_history_*.csv",
     cohort: str = "baseline",
     extra_sources: Optional[Iterable[Path]] = None,
+    model_name: str = "baseline",
+    include_sheets: Optional[Iterable[str]] = None,
+    preserved_columns: Optional[Iterable[str]] = None,
 ) -> None:
-    """Run the existing regression baseline as a placeholder forecast."""
+    """Run the configured forecast pipeline for the requested cohort."""
     repo = repo_root()
     artifacts_dir = ensure_directory(
         Path(output_dir) if output_dir else repo / "data" / "processed" / "forecasts"
     )
-    LOG.info("Running baseline forecast for %s cohort into %s", cohort, artifacts_dir)
-    # Existing helper reads from data/processed using glob.
-    train_regression_forecast(output_dir=artifacts_dir, file_glob=file_glob)
+    LOG.info(
+        "Running %s forecast for %s cohort into %s", model_name, cohort, artifacts_dir
+    )
+
+    if model_name == "sarimax_svr_rm":
+        sheet_list = (
+            tuple(include_sheets)
+            if include_sheets is not None
+            else tuple(
+                sheet.strip()
+                for sheet in os.environ.get("SVR_RM_SHEETS", "2023,2024").split(",")
+                if sheet.strip()
+            )
+        )
+        column_list = (
+            tuple(preserved_columns)
+            if preserved_columns is not None
+            else tuple(
+                column.strip()
+                for column in os.environ.get(
+                    "SVR_RM_PRESERVE_COLUMNS",
+                    ",".join(DEFAULT_SARIMAX_COLUMNS),
+                ).split(",")
+                if column.strip()
+            )
+        )
+        result = train_sarimax_forecast(
+            output_dir=artifacts_dir,
+            cohort=cohort,
+            model_name=model_name,
+            include_sheets=sheet_list,
+            preserved_columns=column_list,
+        )
+        LOG.info(
+            "SARIMAX forecast for %s cohort persisted to %s",
+            cohort,
+            result.output_path,
+        )
+    else:
+        # Existing helper reads from data/processed using glob.
+        train_regression_forecast(output_dir=artifacts_dir, file_glob=file_glob)
+
     if extra_sources:
         for src in extra_sources:
             LOG.info("Extra source considered for cohort %s: %s", cohort, src)
@@ -273,13 +319,14 @@ def load_forecast_to_postgres(
 
     repo = repo_root()
     forecasts_dir = repo / "data" / "processed" / "forecasts"
-    csv_paths = sorted(forecasts_dir.glob("baseline_forecast_*.csv"))
+    pattern = f"{model_name}_forecast_*.csv"
+    csv_paths = sorted(forecasts_dir.glob(pattern))
     if not csv_paths:
         LOG.warning("No forecast CSVs found in %s; skipping load.", forecasts_dir)
         return
 
     latest_csv = csv_paths[-1]
-    run_id = latest_csv.stem.replace("baseline_forecast_", "")
+    run_id = latest_csv.stem.replace(f"{model_name}_forecast_", "")
     LOG.info(
         "Loading forecast run %s from %s into %s.%s",
         run_id,
@@ -297,9 +344,17 @@ def load_forecast_to_postgres(
     df["cohort"] = cohort
     df["model_name"] = model_name
     df["model_version"] = model_version
-    df["forecast_date"] = pd.to_datetime(df["forecast_date"], errors="coerce")
-    df["forecast_quantity"] = pd.to_numeric(df["forecast_quantity"], errors="coerce")
-    df["forecast_revenue"] = pd.to_numeric(df["forecast_revenue"], errors="coerce")
+    df["forecast_date"] = pd.to_datetime(df.get("forecast_date"), errors="coerce")
+    df["forecast_quantity"] = pd.to_numeric(
+        df.get("forecast_quantity"), errors="coerce"
+    )
+    df["forecast_revenue"] = pd.to_numeric(
+        df.get("forecast_revenue"), errors="coerce"
+    )
+    for bound_column in ("forecast_revenue_lower", "forecast_revenue_upper"):
+        if bound_column not in df.columns:
+            df[bound_column] = pd.NA
+        df[bound_column] = pd.to_numeric(df.get(bound_column), errors="coerce")
     df["sale_month"] = df["forecast_date"].dt.to_period("M").dt.to_timestamp("M")
     df["created_at"] = pd.Timestamp.now(tz="UTC")
     df = df.dropna(subset=["forecast_date"])
@@ -379,6 +434,8 @@ def load_forecast_to_postgres(
         "product_name",
         "product_type",
         "product_subcategory",
+        "forecast_revenue_lower",
+        "forecast_revenue_upper",
         "created_at",
     ]
     df = df.reindex(columns=columns)
@@ -412,6 +469,8 @@ def load_forecast_to_postgres(
             product_name text,
             product_type text,
             product_subcategory text,
+            forecast_revenue_lower numeric,
+            forecast_revenue_upper numeric,
             created_at timestamptz not null default now()
         )
         """
@@ -433,6 +492,8 @@ def load_forecast_to_postgres(
         f"alter table {schema}.{table} add column if not exists product_name text",
         f"alter table {schema}.{table} add column if not exists product_type text",
         f"alter table {schema}.{table} add column if not exists product_subcategory text",
+        f"alter table {schema}.{table} add column if not exists forecast_revenue_lower numeric",
+        f"alter table {schema}.{table} add column if not exists forecast_revenue_upper numeric",
     ]
 
     with engine.begin() as conn:

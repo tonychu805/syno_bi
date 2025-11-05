@@ -4,3 +4,4 @@ sqlalchemy>=1.4,<2.0
 psycopg2-binary>=2.9,<3.0
 dbt-core
 dbt-postgres
+statsmodels==0.14.1
