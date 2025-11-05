@@ -96,15 +96,69 @@ def run_sales_cleaning(**_: Dict[str, Any]) -> None:
     LOG.info("Running sales cleaning for %s on sheets %s", workbook, include_sheets)
     cleaned = run_sales_cleaning_pipeline(config)
 
+    columns_of_interest = [
+        col
+        for col in (
+            "PI",
+            "Customer",
+            "ItemCode",
+            "Product",
+            "Quantity",
+            "usd_adjusted_price",
+            "usd_adjusted_total",
+            "InvDate",
+            "Country",
+            "Type",
+            "sub_cat",
+            "Year",
+            "Region",
+        )
+        if col in cleaned.columns
+    ]
+
+    def export_parquet(frame: pd.DataFrame, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        LOG.info("Writing cleaned parquet to %s", path)
+        frame.loc[:, columns_of_interest].to_parquet(path, index=False)
+
     output_path = Path(
         os.environ.get(
             "SALES_CLEAN_OUTPUT",
             repo / "data" / "processed" / "synosales_cleaned.parquet",
         )
     )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    LOG.info("Writing cleaned parquet to %s", output_path)
-    cleaned.to_parquet(output_path, index=False)
+    export_parquet(cleaned, output_path)
+
+    source_column = "source_sheet" if "source_sheet" in cleaned.columns else None
+    if source_column:
+        suite_definitions = {
+            "suite_a": os.environ.get(
+                "SALES_SUITE_A_SHEETS", "2023,2024"
+            ).split(","),
+            "suite_b": os.environ.get(
+                "SALES_SUITE_B_SHEETS", "2023-C2,2024-C2"
+            ).split(","),
+        }
+        for suite_name, raw_values in suite_definitions.items():
+            channels = [value.strip() for value in raw_values if value.strip()]
+            suite_frame = cleaned[cleaned[source_column].isin(channels)].copy()
+            if suite_frame.empty:
+                LOG.warning(
+                    "No rows matched channels %s for %s; skipping parquet output.",
+                    channels,
+                    suite_name,
+                )
+                continue
+
+            suite_env_key = f"SALES_CLEAN_OUTPUT_{suite_name.upper()}"
+            suite_path = Path(
+                os.environ.get(
+                    suite_env_key,
+                    output_path.parent
+                    / f"{output_path.stem}_{suite_name}{output_path.suffix}",
+                )
+            )
+            export_parquet(suite_frame, suite_path)
 
 
 # ---------------------------------------------------------------------------
