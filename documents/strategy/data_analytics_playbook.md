@@ -69,7 +69,7 @@ Record findings, especially data quality issues, in analysis notes or `documents
 
 ## 4. Data Cleaning & Feature Engineering
 
-- Implement corrections in dbt models when possible so improvements are reusable, especially for SVR-RM T1/T2/T3, top-customer revenue slices, regional metrics, and SVR-DT-DS trend fields.  
+- Implement corrections in dbt models when possible so improvements are reusable, especially for SVR-RM T1/T2/T3, top-customer revenue slices, Synology C2 adoption metrics, and commercial activation storytelling fields.  
 - For ad-hoc analysis, use pandas transformations but plan to push them upstream if they become standard.  
 - Track changes in dbt YAML docs (column descriptions, tests) and confirm cleaned tables retain a ready-to-aggregate quarterly grain that supports the next-quarter sales forecast objective.
 
@@ -97,7 +97,7 @@ Add a matching test + description to the YAML file.
 
 ## 5. Target Selection & Segmentation
 
-- Define the population of interest (e.g., SVR-RM T1/T2/T3 cohorts, top 5 customers by revenue, regions with new launches, consumer SVR-DT-DS segments).  
+- Define the population of interest (e.g., SVR-RM T1/T2/T3 cohorts, top 5 customers by revenue, Synology C2 service tiers, commercial activation segments).  
 - Use dbt exposures or Metabase segments to save frequently used filters.  
 - Validate target lists with business stakeholders before running forecasts or campaigns.
 
@@ -114,8 +114,8 @@ WHERE product_line = 'NAS'
 
 ## 6. Statistical Modelling / Forecasting
 
-- Start with baseline models (`src/forecasting/regression.py` uses rolling means) that deliver a next-quarter forecast with ≤2% error for SVR-RM T1/T2/T3 (overall + top customers) and regional volume/revenue.  
-- Treat SVR-DT-DS consumer trends as analytic outputs (growth, share, renewal signals) and integrate them with forecast storytelling.  
+- Start with baseline models (`src/forecasting/regression.py` uses rolling means) that deliver a next-quarter forecast aligned with the accuracy benchmarks agreed with stakeholders for SVR-RM T1/T2/T3 (overall + top customers) and Synology C2 exploratory signals.  
+- Treat Synology C2 adoption trends as analytic outputs (growth, retention, upsell signals) and integrate them with forecast storytelling.  
 - Evaluate metrics (MAPE, sMAPE, WAPE).  
 - Document experiments in `documents/model_eval.md` (input features, hyperparameters, performance).  
 - Promote successful models by updating the forecasting module and scheduling in Airflow.

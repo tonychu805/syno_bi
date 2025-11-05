@@ -10,17 +10,26 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 ## 2. Objectives and Success Criteria
 
 ### Objectives
-- Integrate multiple internal and external data sources into a single BI architecture.
-- Develop and deploy predictive models to forecast next-quarter sales volumes and product demand.
-- Deliver quarterly volume and revenue forecasts for SVR-RM T1/T2/T3 (overall and top 5 customers) and priority regions, while surfacing SVR-DT-DS consumer market trends.
-- Provide commercial and marketing teams with a unified view of execution KPIs, competitive intelligence, and market dynamics.
-- Support the creation of data-backed business cases for new product launches and regional investments.
+1. **SVR-RM Revenue & Top Customers**  
+   - Unify SKU-level sales inputs, customer hierarchies, and enrichment tables so SVR-RM T1/T2/T3 cohorts and top-account breakouts flow end-to-end from ingestion to dashboards.  
+   - Train and operationalize quarterly SARIMAX forecasts that expose point estimates plus confidence bands for each SVR-RM tier and top-customer slice.  
+   - Publish forecast outputs and health metrics into Metabase collections used by executive sales planning.
+
+2. **Synology C2 Exploratory Analysis**  
+   - Profile cloud service adoption (C2 Storage, Backup, Surveillance) by region, customer tier, and SKU to uncover expansion signals.  
+   - Blend telemetry, subscription hygiene, and support-touch data into staging marts so data science can test churn, upsell, and activation hypotheses.  
+   - Package findings into Metabase narratives and sandbox notebooks that feed the broader commercial playbooks for C2 growth.
+
+3. **Consumer Trend & Commercial Activation**  
+   - Maintain a unified BI architecture (dbt → Postgres → Metabase) that blends execution KPIs, competitive intelligence, and forecast outputs for commercial storytelling.  
+   - Surface campaign-ready insights, scenario comparisons, and business-case templates that leverage the forecast artifacts.  
+   - Equip stakeholders with automated reporting flows and governance so decisions are backed by consistent metrics across sales, marketing, and finance.
 
 ### Success Metrics
 | Metric | Target |
 | --- | --- |
 | Forecast accuracy improvement | >= +15% vs manual baseline |
-| Multiple linear regression error (MAPE) | <= 2% |
+| Multiple linear regression error (MAPE) | Meets agreed KPI threshold |
 | Next-quarter forecast coverage | 100% of priority product & channel segments |
 | Dashboard adoption rate | >= 80% of regional users monthly |
 | Reporting latency reduction | 30% faster refresh cycles |
@@ -34,7 +43,7 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 - Centralized warehouse storage on **Synology NAS Postgres** with optional cloud-read replica if needed for external stakeholders.
 - Docker-based orchestration and automation for ETL, model retraining, and dashboard refresh workflows using **Apache Airflow (primary)** and **n8n (secondary)** hosted on Synology NAS.
 - Dashboard design and deployment in **Metabase**, connected to the Postgres warehouse.
-- Predictive model creation (next-quarter sales forecasting, opportunity identification) with emphasis on SVR-RM T1/T2/T3 (overall + top customers), regional demand, and SVR-DT-DS consumer trends.
+- Predictive model creation (next-quarter sales forecasting, opportunity identification) with emphasis on SVR-RM T1/T2/T3 (overall + top customers), Synology C2 exploratory insights, and commercial activation storytelling.
 - Maintenance of full-catalog marts so Metabase users can explore beyond the SVR focus while forecasts remain SKU-specific.
 - Development of a forecasting and prioritization analytical framework.
 - Business case automation templates for marketing strategy.
@@ -107,7 +116,7 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 ## 6. Predictive Modeling Specification
 
 ### Model Type
-Multiple linear regression optimized for Synology sale-out data with a target mean absolute percentage error (MAPE) of 2% or lower.
+Multiple linear regression optimized for Synology sale-out data with a mean absolute percentage error (MAPE) held within the agreed tolerance.
 
 ### Input Features
 - Historical sale-out data (two-year rolling window).
@@ -122,7 +131,7 @@ Multiple linear regression optimized for Synology sale-out data with a target me
 - Growth opportunity heatmap.
 
 ### Performance Metrics
-- Mean Absolute Percentage Error (target ≤2%).
+- Mean Absolute Percentage Error (target per KPI baseline).
 - Rolling four-quarter RMSE comparison.
 - Scenario variance simulation.
 

@@ -1,11 +1,11 @@
 # Pipeline & Automation Implementation Guide
 
 ## Objective
-Orchestrate ingestion, preprocessing, feature engineering, forecasting, and trend analytics into a repeatable, observable workflow that delivers next-quarter SVR-RM T1/T2/T3 forecasts (overall + top customers), regional forecasts, and SVR-DT-DS consumer market trends on schedule.
+Orchestrate ingestion, preprocessing, feature engineering, forecasting, and exploratory analytics into a repeatable, observable workflow that delivers next-quarter SVR-RM T1/T2/T3 forecasts (overall + top customers), Synology C2 adoption insights, and commercial activation narratives on schedule.
 
 ## Responsibilities
 - Package individual modules into orchestrated Airflow DAGs with clear boundaries and dependencies
-- Provide CLI and programmatic entry points for full and incremental runs (Airflow CLI, dbt CLI) that clearly surface the SVR-RM, regional, and consumer trend outputs
+- Provide CLI and programmatic entry points for full and incremental runs (Airflow CLI, dbt CLI) that clearly surface the SVR-RM, Synology C2, and commercial activation outputs
 - Instrument logging, error handling, and alerts for proactive operations
 - Trigger Metabase dashboard refreshes or cache invalidations once new sale-out outputs land (via n8n or Airflow)
 
@@ -30,7 +30,7 @@ Orchestrate ingestion, preprocessing, feature engineering, forecasting, and tren
 - Ensure Airflow workers expose a writable dbt target path (`DBT_TARGET_PATH_OVERRIDE=/opt/airflow/dbt/target_runtime`) so seed/staging runs avoid container read-only layers.
 - `dbt_tests` executes `dbt test --select staging+`; failures halt downstream work.
 - `dbt_marts` runs `dbt run --select marts+` to build KPI-aligned tables.
-- `dbt_marts` produces global quarterly marts, SVR-RM filtered marts (overall + customer), regional marts, and SVR-DT-DS consumer trend snapshots so forecasting and BI consumers stay in sync.
+- `dbt_marts` produces global quarterly marts, SVR-RM filtered marts (overall + customer), Synology C2 exploratory marts, and commercial activation snapshots so forecasting and BI consumers stay in sync.
 - `run_quality_gates` executes Great Expectations/SQL checks (row counts, null thresholds).
 - `publish_lineage` updates metadata tables with run_id, row counts, data freshness.
 - **Outputs**: cleaned parquet, staging/mart tables refreshed in warehouse, quality reports.
@@ -57,16 +57,16 @@ flowchart LR
 
 ### 3. Forecast (`syno_forecast`)
 - Scheduled daily/weekly or triggered off transform completion.
-- `fetch_training_set` queries staging/marts, storing training snapshots for SVR-RM overall, SVR-RM top customers, and regional cohorts.
+- `fetch_training_set` queries staging/marts, storing training snapshots for SVR-RM overall, SVR-RM top customers, and Synology C2 exploration cohorts.
 - `train_forecast` calls `python -m src.forecasting.regression` (or cohort-specific entry points) to generate next-quarter volume and revenue predictions.
 - `evaluate_forecast` computes accuracy metrics (MAPE, sMAPE) on the held-out next quarter per cohort and compares against thresholds.
 - `store_model_artifacts` writes model, metrics, and provenance metadata to `data/processed/forecasts/`.
-- `publish_forecast_outputs` loads forecast tables (overall, top customers, regional) back to the warehouse; consumer trend metrics are refreshed from dbt marts.
+- `publish_forecast_outputs` loads forecast tables (overall, top customers, Synology C2 exploratory scorecards) back to the warehouse; activation metrics are refreshed from dbt marts.
 - `notify_forecast_status` alerts stakeholders if metrics trend down or new versions land.
 
 ### 4. Activation (`syno_activation`)
 - `refresh_metabase` triggers Metabase API or n8n webhook to refresh dashboards.
-- `send_summary_notifications` posts Slack/Teams summaries covering ingestion volume, dbt health, forecast metrics, and consumer trend highlights.
+- `send_summary_notifications` posts Slack/Teams summaries covering ingestion volume, dbt health, forecast metrics, and Synology C2 highlights.
 - `update_data_catalog` syncs exposures/lineage back to catalog tooling (optional).
 
 ## Implementation Steps

@@ -5,7 +5,7 @@ Define and enforce automated quality checks across code, data, and models to mai
 
 ## Responsibilities
 - Maintain linting, formatting, and testing suites with clear contribution guidelines
-- Instrument data validation and coverage thresholds across the pipeline, including next-quarter volume and revenue forecast accuracy targets for SVR-RM cohorts, regional forecasts, and SVR-DT-DS consumer metrics
+- Instrument data validation and coverage thresholds across the pipeline, including next-quarter volume and revenue forecast accuracy targets for SVR-RM cohorts, Synology C2 exploratory outputs, and commercial activation metrics
 - Surface quality status in CI dashboards and team rituals
 
 ## Inputs & Outputs
@@ -15,7 +15,7 @@ Define and enforce automated quality checks across code, data, and models to mai
 ## Implementation Steps
 1. Configure `ruff`, `black`, and `pytest --cov=src --cov-report=term-missing` in CI workflow
 2. Add pre-commit hooks for formatting, linting, and basic security scans (bandit)
-3. Integrate data quality checks (dbt test, Great Expectations, or custom assertions) into pipeline steps and Airflow DAGs, with alerts when next-quarter MAPE exceeds 2% for SVR-RM or regional forecasts, and reconciliation tests tying SVR/region/customer slices back to the global dataset
+3. Integrate data quality checks (dbt test, Great Expectations, or custom assertions) into pipeline steps and Airflow DAGs, with alerts when next-quarter MAPE exceeds configured thresholds for SVR-RM or Synology C2 outputs, and reconciliation tests tying SVR/C2/customer slices back to the global dataset
 4. Define release checklist requiring passing quality gates and documentation updates
 
 ## Testing & Validation

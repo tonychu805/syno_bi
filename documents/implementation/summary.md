@@ -3,9 +3,9 @@
 | Index | Phase | Key Focus | Document |
 | --- | --- | --- | --- |
 | 01 | Ingestion | Convert raw Excel worksheets into serialized DataFrames without touching snapshots | [01_ingestion.md](phases/01_ingestion.md) |
-| 02 | Preprocessing | Standardize ingestion outputs and surface quarterly-ready layers for SVR-RM T1/T2/T3, regional, and consumer SVR-DT-DS trends | [02_preprocessing.md](phases/02_preprocessing.md) |
-| 03 | Feature Engineering | Build reusable feature sets for SVR-RM forecasts, regional forecasts, and SVR-DT-DS trend insights | [03_feature_engineering.md](phases/03_feature_engineering.md) |
-| 04 | Forecasting | Deliver next-quarter SVR-RM volume/revenue forecasts (overall & top customers) and regional forecasts targeting ≤2% MAPE | [04_forecasting.md](phases/04_forecasting.md) |
+| 02 | Preprocessing | Standardize ingestion outputs and surface quarterly-ready layers for SVR-RM T1/T2/T3, Synology C2 adoption analysis, and commercial activation storytelling | [02_preprocessing.md](phases/02_preprocessing.md) |
+| 03 | Feature Engineering | Build reusable feature sets for SVR-RM forecasts, Synology C2 exploratory models, and commercial activation insights | [03_feature_engineering.md](phases/03_feature_engineering.md) |
+| 04 | Forecasting | Deliver next-quarter SVR-RM volume/revenue forecasts (overall & top customers) and Synology C2 exploratory outputs targeting business-defined MAPE benchmarks | [04_forecasting.md](phases/04_forecasting.md) |
 | 05 | Pipelines & Automation | Four-part Airflow topology: ingestion sensors, transform DAG (cleaning + dbt), forecast DAG, and activation hooks (Metabase/webhooks) | [05_pipelines.md](phases/05_pipelines.md) |
 | 06 | Quality Gates | Enforce lint, test, coverage, and data validation standards | [06_quality_gates.md](phases/06_quality_gates.md) |
 | 07 | Outputs & Reporting | Publish Metabase dashboards, forecast tables, and stakeholder-ready summaries | [07_outputs_reporting.md](phases/07_outputs_reporting.md) |

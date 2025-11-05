@@ -22,7 +22,7 @@ Deliver stakeholder-ready assets that translate cleaned and forecasted data into
 1. **Ingest Forecast Tables** – Load CSV outputs from `data/processed/forecasts/` into warehouse tables (`analytics.forecast_*`) using dbt seeds or Python loaders with schema enforcement.
 2. **Publish Dashboard Models** – Ensure dbt models (or views) expose the latest forecasts alongside historical actuals for Metabase; document joins and filters in schema.yml.
 3. **Generate Insights Report** – Run templated notebook/script that translates forecast results into markdown/HTML, embedding key visuals and KPI deltas; archive versions per release.
-4. **Quality Review** – Validate forecast metrics against thresholds (MAPE target ≤2%) and document outcomes in `forecast_metrics`; surface blockers via Airflow SLAs/alerts.
+4. **Quality Review** – Validate forecast metrics against thresholds (MAPE target per KPI baseline) and document outcomes in `forecast_metrics`; surface blockers via Airflow SLAs/alerts.
 5. **Stakeholder Communication** – Post dashboards/reports to agreed channels (Metabase collections, Slack, email digest) with summary bullets and required actions.
 
 ## Change Management
