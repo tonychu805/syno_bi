@@ -253,9 +253,10 @@ def _clean_sales_frame(config: SalesCleaningConfig) -> pd.DataFrame:
     )
     frame = _apply_currency_conversion(frame, config.currency_rates)
 
-    if "exchange_rate_to_usd" in frame.columns and frame[
-        "exchange_rate_to_usd"
-    ].isna().any():
+    if (
+        "exchange_rate_to_usd" in frame.columns
+        and frame["exchange_rate_to_usd"].isna().any()
+    ):
         _fill_with_mode(frame, "exchange_rate_to_usd")
         frame["exchange_rate_to_usd"] = frame["exchange_rate_to_usd"].fillna(1.0)
         if "Price" in frame.columns:

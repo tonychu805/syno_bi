@@ -41,7 +41,9 @@ class SarimaxForecastResult:
     output_path: Path
 
 
-def _ensure_sequence(arg: Iterable[str] | None, *, default: Sequence[str]) -> tuple[str, ...]:
+def _ensure_sequence(
+    arg: Iterable[str] | None, *, default: Sequence[str]
+) -> tuple[str, ...]:
     if arg is None:
         return tuple(default)
     return tuple(item for item in arg if item)

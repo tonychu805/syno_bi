@@ -50,10 +50,14 @@ def _load_sales_history_from_parquet(path: Path) -> pd.DataFrame:
     if "Product" in working.columns:
         product_series = working["Product"].astype("string").str.strip()
         sku_series = (
-            sku_series.fillna(product_series) if sku_series is not None else product_series
+            sku_series.fillna(product_series)
+            if sku_series is not None
+            else product_series
         )
     if sku_series is None:
-        raise ValueError("Cleaned parquet is missing both ItemCode and Product columns.")
+        raise ValueError(
+            "Cleaned parquet is missing both ItemCode and Product columns."
+        )
 
     if "source_sheet" in working.columns:
         channel_series = working["source_sheet"].astype("string").str.strip()
@@ -148,7 +152,9 @@ def _load_sales_history_from_csv(files: Iterable[Path]) -> pd.DataFrame:
     return combined
 
 
-def _load_sales_history(files: Iterable[Path], parquet_path: Optional[Path]) -> pd.DataFrame:
+def _load_sales_history(
+    files: Iterable[Path], parquet_path: Optional[Path]
+) -> pd.DataFrame:
     if parquet_path is not None and parquet_path.exists():
         return _load_sales_history_from_parquet(parquet_path)
     if parquet_path is not None:
@@ -185,13 +191,9 @@ def _create_forecast_baseline(sales_history: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("Sales history is empty; cannot compute baseline forecast.")
 
     cutoff = _normalize_month_end(FORECAST_HOLDOUT_START)
-    train_history = monthly_history[
-        monthly_history["sale_month"] < cutoff
-    ].copy()
+    train_history = monthly_history[monthly_history["sale_month"] < cutoff].copy()
     if train_history.empty:
-        raise ValueError(
-            "No training data available before holdout start %s" % cutoff
-        )
+        raise ValueError("No training data available before holdout start %s" % cutoff)
 
     future_months = _future_months(cutoff, FORECAST_HORIZON_MONTHS)
     forecasts = []
@@ -201,12 +203,16 @@ def _create_forecast_baseline(sales_history: pd.DataFrame) -> pd.DataFrame:
         if history.empty:
             continue
         last_month = _normalize_month_end(history["sale_month"].max())
-        rolling_quantity = history["quantity"].rolling(
-            window=FORECAST_ROLLING_WINDOW, min_periods=1
-        ).mean()
-        rolling_revenue = history["revenue"].rolling(
-            window=FORECAST_ROLLING_WINDOW, min_periods=1
-        ).mean()
+        rolling_quantity = (
+            history["quantity"]
+            .rolling(window=FORECAST_ROLLING_WINDOW, min_periods=1)
+            .mean()
+        )
+        rolling_revenue = (
+            history["revenue"]
+            .rolling(window=FORECAST_ROLLING_WINDOW, min_periods=1)
+            .mean()
+        )
         baseline_quantity = float(rolling_quantity.iloc[-1])
         baseline_revenue = float(rolling_revenue.iloc[-1])
 
@@ -244,7 +250,9 @@ def train_regression_forecast(
 
     parquet_env = os.environ.get("SALES_HISTORY_PARQUET")
     parquet_path = Path(parquet_env) if parquet_env else _cleaned_parquet_path()
-    sales_history = _load_sales_history(files, parquet_path if parquet_path.exists() else None)
+    sales_history = _load_sales_history(
+        files, parquet_path if parquet_path.exists() else None
+    )
 
     forecasts = _create_forecast_baseline(sales_history)
 
