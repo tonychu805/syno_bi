@@ -366,8 +366,7 @@ def load_forecast_to_postgres(
     delete_stmt = text(
         f"""
         delete from {schema}.{table}
-        where forecast_run_id = :forecast_run_id
-          and cohort = :cohort
+        where cohort = :cohort
           and model_name = :model_name
           and model_version = :model_version
         """
@@ -390,7 +389,6 @@ def load_forecast_to_postgres(
         conn.execute(
             delete_stmt,
             {
-                "forecast_run_id": run_id,
                 "cohort": cohort,
                 "model_name": model_name,
                 "model_version": model_version,
