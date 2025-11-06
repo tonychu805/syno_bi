@@ -13,17 +13,31 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
 1. **SVR-RM Revenue & Top Customers**  
    - Unify SKU-level sales inputs, customer hierarchies, and enrichment tables so SVR-RM T1/T2/T3 cohorts and top-account breakouts flow end-to-end from ingestion to dashboards.  
    - Train and operationalize quarterly SARIMAX forecasts that expose point estimates plus confidence bands for each SVR-RM tier and top-customer slice.  
-   - Publish forecast outputs and health metrics into Metabase collections used by executive sales planning.
+   - Publish forecast outputs and health metrics into Metabase collections used by executive sales planning.  
+   - **Primary warehouse artifact:** `analytics.forecast_overall`  
+     (`forecast_run_id`, `cohort`, `model_name`, `model_version`, `sku`, `channel`,  
+     `sale_month`, `forecast_date`, `forecast_quantity`, `forecast_revenue`,  
+     `forecast_revenue_lower`, `forecast_revenue_upper`, `actual_quantity`,  
+     `actual_revenue`, `product_name`, `product_type`, `product_subcategory`,  
+     `created_at`).
 
 2. **Synology C2 Exploratory Analysis**  
-   - Profile cloud service adoption (C2 Storage, Backup, Surveillance) by region, customer tier, and SKU to uncover expansion signals.  
-   - Blend telemetry, subscription hygiene, and support-touch data into staging marts so data science can test churn, upsell, and activation hypotheses.  
-   - Package findings into Metabase narratives and sandbox notebooks that feed the broader commercial playbooks for C2 growth.
+   - Profile cloud service adoption (C2 Storage, Backup, Surveillance) by region, customer tier, and SKU using the consolidated sale-out snapshot to uncover expansion signals.  
+   - Deliver subscription-oriented metrics (customer counts, order velocity, revenue, seat proxies) derived from sales activity, with telemetry/support enrichments earmarked for a future phase.  
+   - Package findings into Metabase narratives and sandbox notebooks that feed the broader commercial playbooks for C2 growth.  
+   - **Primary warehouse artifact:** `analytics.c2_adoption_scorecard`  
+     (`snapshot_month`, `service_family`, `plan_variant`, `region`, `customer_tier`,  
+     `sku`, `active_subscriptions`, `new_subscriptions`, `arr_usd`, `total_quantity`,  
+     `avg_seats`).
 
 3. **Consumer Trend & Commercial Activation**  
    - Maintain a unified BI architecture (dbt → Postgres → Metabase) that blends execution KPIs, competitive intelligence, and forecast outputs for commercial storytelling.  
    - Surface campaign-ready insights, scenario comparisons, and business-case templates that leverage the forecast artifacts.  
-   - Equip stakeholders with automated reporting flows and governance so decisions are backed by consistent metrics across sales, marketing, and finance.
+   - Equip stakeholders with automated reporting flows and governance so decisions are backed by consistent metrics across sales, marketing, and finance.  
+   - **Primary warehouse artifact:** `analytics.activation_storylines`  
+     (`snapshot_month`, `region`, `segment`, `actual_revenue`, `forecast_revenue`,  
+     `variance_pct`, `inventory_weeks_cover`, `market_index_score`, `activation_score`,  
+     `recommended_action`, `confidence_note`).
 
 ### Success Metrics
 | Metric | Target |

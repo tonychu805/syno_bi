@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import json
+import logging
+import os
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -33,12 +36,19 @@ DEFAULT_PRESERVED_COLUMNS: tuple[str, ...] = (
 )
 
 
+LOG = logging.getLogger(__name__)
+
+
 @dataclass(slots=True)
 class SarimaxForecastResult:
-    """Container for the forecast artefact and metadata."""
+    """Container for the forecast artefacts and metadata."""
 
     forecast: pd.DataFrame
     output_path: Path
+    combined: pd.DataFrame | None = None
+    combined_output_path: Path | None = None
+    metrics: dict[str, float] | None = None
+    metrics_path: Path | None = None
 
 
 def _ensure_sequence(
@@ -53,8 +63,8 @@ def _prepare_monthly_series(
     data: pd.DataFrame,
     *,
     holdout_start: pd.Timestamp,
-) -> tuple[pd.Series, pd.Series]:
-    """Return monthly revenue and quantity series split by holdout boundary."""
+) -> tuple[pd.Series, pd.Series, pd.DataFrame, pd.DataFrame]:
+    """Return monthly series split by holdout boundary along with full aggregates."""
 
     working = data.copy()
     working["InvDate"] = pd.to_datetime(working["InvDate"], errors="coerce")
@@ -85,6 +95,8 @@ def _prepare_monthly_series(
     return (
         history["revenue"],
         history["quantity"],
+        monthly,
+        monthly.loc[monthly.index >= holdout_start],
     )
 
 
@@ -118,14 +130,33 @@ def train_sarimax_forecast(
     if "source_sheet" in sales.columns:
         sales = sales[sales["source_sheet"].isin(sheets)]
 
+    prefix = os.environ.get("SVR_RM_SUBCAT_PREFIX", "SVR-RM").strip()
+    if prefix and "sub_cat" in sales.columns:
+        sales = sales[
+            sales["sub_cat"]
+            .fillna("")
+            .astype(str)
+            .str.upper()
+            .str.startswith(prefix.upper())
+        ]
+
     missing_columns = [column for column in columns if column not in sales.columns]
     if missing_columns:
         raise ValueError(
             f"Missing required columns for SARIMAX forecast: {', '.join(missing_columns)}"
         )
+    if sales.empty:
+        raise ValueError(
+            "No records available after applying sheet and cohort filters for SARIMAX."
+        )
 
     working = sales.loc[:, list(columns)].copy()
-    revenue_history, quantity_history = _prepare_monthly_series(
+    (
+        revenue_history,
+        quantity_history,
+        monthly_aggregates,
+        holdout_aggregates,
+    ) = _prepare_monthly_series(
         working, holdout_start=holdout_start
     )
 
@@ -163,8 +194,81 @@ def train_sarimax_forecast(
         }
     )
 
+    combined = (
+        monthly_aggregates.rename(
+            columns={"revenue": "actual_revenue", "quantity": "actual_quantity"}
+        )
+        .copy()
+    )
+    combined_index = combined.index.union(forecast_index)
+    combined = combined.reindex(combined_index).sort_index()
+    combined["forecast_quantity"] = np.nan
+    combined["forecast_revenue"] = np.nan
+    combined["forecast_revenue_lower"] = np.nan
+    combined["forecast_revenue_upper"] = np.nan
+    combined["forecast_date"] = combined.index
+    combined.loc[forecast_index, "forecast_quantity"] = quantity_pred.values
+    combined.loc[forecast_index, "forecast_revenue"] = revenue_mean.values
+    combined.loc[forecast_index, "forecast_revenue_lower"] = revenue_conf.iloc[:, 0].values
+    combined.loc[forecast_index, "forecast_revenue_upper"] = revenue_conf.iloc[:, 1].values
+    combined["channel"] = cohort
+    combined["sku"] = f"{cohort.upper()}_ALL"
+    combined.index.name = "sale_month"
+
+    combined_frame = combined.reset_index()
+    combined_frame["sale_month"] = pd.to_datetime(
+        combined_frame["sale_month"], errors="coerce"
+    )
+    combined_frame["forecast_date"] = pd.to_datetime(
+        combined_frame["forecast_date"], errors="coerce"
+    )
+
+    metrics: dict[str, float] = {}
+    evaluation_index = forecast_index.intersection(holdout_aggregates.index)
+    if not evaluation_index.empty:
+        actual_values = holdout_aggregates.loc[evaluation_index, "revenue"].to_numpy(
+            dtype=float
+        )
+        predicted_values = revenue_mean.loc[evaluation_index].to_numpy(dtype=float)
+        non_zero_mask = np.abs(actual_values) > 0
+        if non_zero_mask.any():
+            mape = (
+                np.abs(actual_values[non_zero_mask] - predicted_values[non_zero_mask])
+                / np.abs(actual_values[non_zero_mask])
+            ).mean() * 100
+            metrics["mape"] = float(mape)
+            LOG.info("SVR-RM SARIMAX MAPE over holdout: %.2f%%", mape)
+        else:
+            LOG.warning(
+                "Holdout actuals are zero-valued; skipping MAPE calculation for SVR-RM."
+            )
+    else:
+        LOG.warning(
+            "No overlapping holdout periods between actuals and forecasts; skipping MAPE."
+        )
+
     timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     output_path = output_dir / f"{model_name}_forecast_{timestamp}.csv"
     output.to_csv(output_path, index=False)
 
-    return SarimaxForecastResult(forecast=output, output_path=output_path)
+    combined_output_path = output_dir / f"{model_name}_combined_{timestamp}.csv"
+    combined_export = combined_frame.copy()
+    combined_export["sale_month"] = combined_export["sale_month"].dt.date
+    combined_export["forecast_date"] = combined_export["forecast_date"].dt.date
+    combined_export.to_csv(combined_output_path, index=False)
+
+    metrics_path: Path | None = None
+    if metrics:
+        metrics_path = output_dir / f"{model_name}_metrics_{timestamp}.json"
+        metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+
+    return SarimaxForecastResult(
+        forecast=output,
+        output_path=output_path,
+        combined=combined_frame,
+        combined_output_path=combined_output_path,
+        metrics=metrics or None,
+        metrics_path=metrics_path,
+    )

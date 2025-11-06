@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 from typing import Any, Dict, Iterable, Optional
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
@@ -40,6 +41,7 @@ TRANSFORM_DATASET = Dataset("synology://datasets/transform_complete")
 COHORT_SVR_RM = "svr_rm"
 COHORT_REGION = "region"
 COHORT_SVR_DT_DS_TREND = "svr_dt_ds_trend"
+COHORT_C2_ADOPTION = "c2_adoption"
 
 
 def repo_root() -> Path:
@@ -299,6 +301,20 @@ def run_baseline_forecast(
             cohort,
             result.output_path,
         )
+        if result.combined_output_path:
+            LOG.info(
+                "Combined actual/forecast artefact for %s cohort stored at %s",
+                cohort,
+                result.combined_output_path,
+            )
+        if result.metrics:
+            LOG.info("Forecast metrics for %s cohort: %s", cohort, result.metrics)
+            if result.metrics_path:
+                LOG.info(
+                    "Metrics artefact for %s cohort stored at %s",
+                    cohort,
+                    result.metrics_path,
+                )
     else:
         # Existing helper reads from data/processed using glob.
         train_regression_forecast(output_dir=artifacts_dir, file_glob=file_glob)
@@ -328,18 +344,40 @@ def load_forecast_to_postgres(
 
     latest_csv = csv_paths[-1]
     run_id = latest_csv.stem.replace(f"{model_name}_forecast_", "")
-    LOG.info(
-        "Loading forecast run %s from %s into %s.%s",
-        run_id,
-        latest_csv,
-        schema,
-        table,
-    )
+    combined_candidate = forecasts_dir / f"{model_name}_combined_{run_id}.csv"
+    if combined_candidate.exists():
+        source_path = combined_candidate
+        LOG.info(
+            "Loading combined forecast run %s from %s into %s.%s",
+            run_id,
+            combined_candidate,
+            schema,
+            table,
+        )
+    else:
+        source_path = latest_csv
+        LOG.info(
+            "Loading forecast run %s from %s into %s.%s",
+            run_id,
+            latest_csv,
+            schema,
+            table,
+        )
 
-    df = pd.read_csv(latest_csv)
+    df = pd.read_csv(source_path)
     if df.empty:
         LOG.warning("Forecast CSV %s is empty; skipping load.", latest_csv)
         return
+
+    if "forecast_date" not in df.columns and "sale_month" in df.columns:
+        df["forecast_date"] = df["sale_month"]
+    if "channel" not in df.columns:
+        df["channel"] = cohort
+    df["channel"] = df["channel"].fillna(cohort)
+    default_sku = f"{cohort.upper()}_ALL"
+    if "sku" not in df.columns:
+        df["sku"] = default_sku
+    df["sku"] = df["sku"].fillna(default_sku)
 
     df["forecast_run_id"] = run_id
     df["cohort"] = cohort
@@ -356,7 +394,13 @@ def load_forecast_to_postgres(
         if bound_column not in df.columns:
             df[bound_column] = pd.NA
         df[bound_column] = pd.to_numeric(df.get(bound_column), errors="coerce")
-    df["sale_month"] = df["forecast_date"].dt.to_period("M").dt.to_timestamp("M")
+    if "sale_month" in df.columns:
+        df["sale_month"] = pd.to_datetime(df["sale_month"], errors="coerce")
+        missing_sale_mask = df["sale_month"].isna() & df["forecast_date"].notna()
+        df.loc[missing_sale_mask, "sale_month"] = df.loc[missing_sale_mask, "forecast_date"]
+    else:
+        df["sale_month"] = df["forecast_date"]
+    df["sale_month"] = df["sale_month"].dt.to_period("M").dt.to_timestamp("M")
     df["created_at"] = pd.Timestamp.now(tz="UTC")
     df = df.dropna(subset=["forecast_date"])
 
@@ -395,18 +439,33 @@ def load_forecast_to_postgres(
         except (ValueError, FileNotFoundError, OSError, SQLAlchemyError) as exc:
             LOG.warning("Unable to enrich forecast with actuals: %s", exc)
 
+    required_actual_columns = {"actual_quantity", "actual_revenue"}
+    required_product_columns = set(product_columns.keys())
     if actual_columns is not None:
-        df = df.merge(
-            actual_columns,
-            how="left",
-            left_on=["sale_month", "channel", "sku"],
-            right_on=["sale_month", "channel", "sku"],
-        )
-    else:
-        df["actual_quantity"] = pd.NA
-        df["actual_revenue"] = pd.NA
-        for name in product_columns:
-            df[name] = pd.NA
+        columns_to_add = [
+            column
+            for column in (required_actual_columns | required_product_columns)
+            if column not in df.columns
+        ]
+        if columns_to_add:
+            available_columns = [
+                column
+                for column in columns_to_add
+                if column in actual_columns.columns
+            ]
+            if available_columns:
+                df = df.merge(
+                    actual_columns[["sale_month", "channel", "sku", *available_columns]],
+                    how="left",
+                    left_on=["sale_month", "channel", "sku"],
+                    right_on=["sale_month", "channel", "sku"],
+                )
+    for fallback_column in required_actual_columns:
+        if fallback_column not in df.columns:
+            df[fallback_column] = pd.NA
+    for display in required_product_columns:
+        if display not in df.columns:
+            df[display] = pd.NA
 
     df["actual_quantity"] = pd.to_numeric(df.get("actual_quantity"), errors="coerce")
     df["actual_revenue"] = pd.to_numeric(df.get("actual_revenue"), errors="coerce")
@@ -527,6 +586,225 @@ def load_forecast_to_postgres(
         schema,
         table,
     )
+
+
+# ---------------------------------------------------------------------------
+# Objective 2: C2 adoption helpers
+# ---------------------------------------------------------------------------
+
+
+def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
+    """Build the C2 adoption scorecard directly from the cleaned sale-out parquet."""
+
+    repo = repo_root()
+    parquet_path = repo / "data" / "processed" / "synosales_cleaned.parquet"
+    if not parquet_path.exists():
+        LOG.warning("Cleaned sales parquet not found at %s; skipping C2 scorecard.", parquet_path)
+        return
+
+    raw = pd.read_parquet(parquet_path)
+    if raw.empty:
+        LOG.warning("Cleaned sales parquet is empty; skipping C2 scorecard build.")
+        return
+
+    if "sub_cat" not in raw.columns:
+        LOG.warning("Cleaned sales data missing 'sub_cat'; cannot derive C2 cohort.")
+        return
+
+    prefix = os.environ.get("C2_SUBCAT_PREFIX", "C2-").upper()
+    c2_sales = raw[
+        raw["sub_cat"]
+        .fillna("")
+        .astype(str)
+        .str.upper()
+        .str.startswith(prefix)
+    ].copy()
+
+    if c2_sales.empty:
+        LOG.warning("No records matched prefix %s; skipping C2 scorecard build.", prefix)
+        return
+
+    c2_sales["InvDate"] = pd.to_datetime(c2_sales.get("InvDate"), errors="coerce")
+    c2_sales = c2_sales.dropna(subset=["InvDate"])
+    if c2_sales.empty:
+        LOG.warning("C2 sales cohort has no valid invoice dates; skipping scorecard.")
+        return
+
+    c2_sales["Customer"] = c2_sales.get("Customer").fillna("UNSPECIFIED").astype(str)
+    c2_sales["Region"] = c2_sales.get("Region").fillna("Unknown").astype(str)
+    c2_sales["PI"] = c2_sales.get("PI").fillna("UNSPECIFIED").astype(str)
+
+    c2_sales["Quantity"] = pd.to_numeric(c2_sales.get("Quantity"), errors="coerce").fillna(0.0)
+    c2_sales["usd_adjusted_total"] = pd.to_numeric(
+        c2_sales.get("usd_adjusted_total"), errors="coerce"
+    ).fillna(0.0)
+
+    def parse_components(value: str) -> tuple[str, str, str]:
+        tokens = str(value or "").upper().split("-")
+        tokens += ["UNKNOWN"] * max(0, 4 - len(tokens))
+        return tokens[1], tokens[2], tokens[3]
+
+    components = c2_sales["sub_cat"].apply(parse_components)
+    c2_sales["service_family"] = components.apply(lambda tpl: tpl[0] or "UNKNOWN")
+    c2_sales["capacity_band"] = components.apply(lambda tpl: tpl[1] or "UNKNOWN")
+    c2_sales["plan_variant"] = components.apply(lambda tpl: tpl[2] or "UNKNOWN")
+    c2_sales["snapshot_month"] = (
+        c2_sales["InvDate"].dt.to_period("M").dt.to_timestamp("M")
+    )
+
+    revenue_by_customer = (
+        c2_sales.groupby("Customer", dropna=False)["usd_adjusted_total"]
+        .sum()
+        .reset_index(name="total_revenue")
+    )
+    if not revenue_by_customer.empty:
+        revenue_by_customer["revenue_rank"] = (
+            revenue_by_customer["total_revenue"]
+            .rank(method="dense", ascending=False)
+            .astype(int)
+        )
+
+        def label_tier(rank: int) -> str:
+            if rank <= 5:
+                return "Tier 1 - Top 5"
+            if rank <= 20:
+                return "Tier 2 - Top 20"
+            return "Tier 3 - Long Tail"
+
+        revenue_by_customer["customer_tier"] = revenue_by_customer["revenue_rank"].apply(label_tier)
+        tier_map = revenue_by_customer.set_index("Customer")["customer_tier"]
+        c2_sales["customer_tier"] = c2_sales["Customer"].map(tier_map).fillna("Tier 3 - Long Tail")
+    else:
+        c2_sales["customer_tier"] = "Tier 3 - Long Tail"
+
+    grouped = (
+        c2_sales.groupby(
+            ["snapshot_month", "service_family", "plan_variant", "Region", "customer_tier"],
+            dropna=False,
+        )
+        .agg(
+            active_subscriptions=("Customer", "nunique"),
+            new_subscriptions=("PI", "nunique"),
+            arr_usd=("usd_adjusted_total", "sum"),
+            total_quantity=("Quantity", "sum"),
+        )
+        .reset_index()
+    )
+
+    if grouped.empty:
+        LOG.warning("Aggregated C2 scorecard has no rows; skipping load.")
+        return
+
+    grouped.rename(columns={"Region": "region"}, inplace=True)
+    grouped["sku"] = "ALL"
+    grouped["avg_seats"] = (
+        grouped["total_quantity"] / grouped["active_subscriptions"].replace(0, np.nan)
+    )
+    grouped["snapshot_month"] = pd.to_datetime(grouped["snapshot_month"], errors="coerce").dt.date
+    grouped["service_family"] = grouped["service_family"].fillna("UNKNOWN")
+    grouped["plan_variant"] = grouped["plan_variant"].fillna("UNKNOWN")
+    grouped["region"] = grouped["region"].fillna("Unknown")
+    grouped["customer_tier"] = grouped["customer_tier"].fillna("Tier 3 - Long Tail")
+
+    grouped = grouped[
+        [
+            "snapshot_month",
+            "service_family",
+            "plan_variant",
+            "region",
+            "customer_tier",
+            "sku",
+            "active_subscriptions",
+            "new_subscriptions",
+            "arr_usd",
+            "total_quantity",
+            "avg_seats",
+        ]
+    ]
+
+    grouped["active_subscriptions"] = grouped["active_subscriptions"].astype(int)
+    grouped["new_subscriptions"] = grouped["new_subscriptions"].astype(int)
+    grouped["arr_usd"] = grouped["arr_usd"].astype(float)
+    grouped["total_quantity"] = grouped["total_quantity"].astype(float)
+    grouped["avg_seats"] = grouped["avg_seats"].astype(float)
+    grouped["created_at"] = pd.Timestamp.utcnow()
+    grouped = grouped.sort_values(["snapshot_month", "service_family", "region"])
+    grouped.replace({np.nan: None}, inplace=True)
+
+    connection_url = URL.create(
+        drivername="postgresql+psycopg2",
+        username=os.environ.get("WAREHOUSE_USER", "admin"),
+        password=os.environ.get("WAREHOUSE_PASSWORD", "Black17998~"),
+        host=os.environ.get("WAREHOUSE_HOST", "postgres"),
+        port=int(os.environ.get("WAREHOUSE_PORT", "5432")),
+        database=os.environ.get("WAREHOUSE_DB", "syno_bi"),
+    )
+    engine = create_engine(connection_url)
+
+    create_schema_stmt = text("create schema if not exists analytics")
+    create_table_stmt = text(
+        """
+        create table if not exists analytics.c2_adoption_scorecard (
+            snapshot_month date,
+            service_family text,
+            plan_variant text,
+            region text,
+            customer_tier text,
+            sku text,
+            active_subscriptions integer,
+            new_subscriptions integer,
+            arr_usd numeric,
+            total_quantity numeric,
+            avg_seats numeric,
+            created_at timestamptz not null
+        )
+        """
+    )
+
+    truncate_stmt = text("truncate table analytics.c2_adoption_scorecard")
+
+    LOG.info("Loading %d rows into analytics.c2_adoption_scorecard", len(grouped))
+    with engine.begin() as conn:
+        conn.execute(create_schema_stmt)
+        conn.execute(create_table_stmt)
+        conn.execute(truncate_stmt)
+        grouped.to_sql(
+            "c2_adoption_scorecard",
+            conn,
+            schema="analytics",
+            if_exists="append",
+            index=False,
+            method="multi",
+        )
+
+
+def export_c2_scorecard(**_: Dict[str, Any]) -> None:
+    """Dump the C2 adoption scorecard table to a CSV artefact."""
+    repo = repo_root()
+    output_dir = ensure_directory(repo / "data" / "processed" / "c2")
+    output_path = output_dir / "c2_adoption_scorecard.csv"
+
+    connection_url = URL.create(
+        drivername="postgresql+psycopg2",
+        username=os.environ.get("WAREHOUSE_USER", "admin"),
+        password=os.environ.get("WAREHOUSE_PASSWORD", "Black17998~"),
+        host=os.environ.get("WAREHOUSE_HOST", "postgres"),
+        port=int(os.environ.get("WAREHOUSE_PORT", "5432")),
+        database=os.environ.get("WAREHOUSE_DB", "syno_bi"),
+    )
+    engine = create_engine(connection_url)
+
+    query = text("select * from analytics.c2_adoption_scorecard order by snapshot_month, service_family, region")
+    LOG.info("Exporting C2 adoption scorecard to %s", output_path)
+    try:
+        with engine.begin() as conn:
+            df = pd.read_sql(query, conn)
+    except Exception as exc:  # pragma: no cover - defensive for missing table
+        LOG.warning("Unable to export C2 adoption scorecard: %s", exc)
+        return
+
+    df.to_csv(output_path, index=False)
+    LOG.info("C2 adoption scorecard export complete (%d rows)", len(df))
 
 
 # ---------------------------------------------------------------------------
