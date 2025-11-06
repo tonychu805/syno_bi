@@ -107,6 +107,7 @@ def run_sales_cleaning(**_: Dict[str, Any]) -> None:
             "Customer",
             "ItemCode",
             "Product",
+            "source_sheet",
             "Quantity",
             "usd_adjusted_price",
             "usd_adjusted_total",

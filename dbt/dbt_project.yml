@@ -12,6 +12,19 @@ test-paths: ["tests"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
+vars:
+  synosales_sources:
+    - ["synology_ingestion", "2023_c2", "2023-C2"]
+    - ["synology_ingestion", "seed_sales_2023", "2023"]
+    - ["synology_ingestion", "2024_c2", "2024-C2"]
+    - ["synology_ingestion", "seed_sales_2024", "2024"]
+  synosales_suite_a_sources:
+    - ["synology_ingestion", "seed_sales_2023", "2023"]
+    - ["synology_ingestion", "seed_sales_2024", "2024"]
+  synosales_suite_b_sources:
+    - ["synology_ingestion", "2023_c2", "2023-C2"]
+    - ["synology_ingestion", "2024_c2", "2024-C2"]
+
 target-path: "target"
 clean-targets:
   - "target"

@@ -1,4 +1,15 @@
 {% macro union_sales_sources(sources_list) %}
+{% if sources_list | length == 0 %}
+select
+    null::date as sale_date,
+    null::text as item_code,
+    null::text as product_name,
+    null::text as sku,
+    null::text as channel,
+    null::numeric as quantity,
+    null::numeric as revenue
+where 1 = 0
+{% else %}
 with combined as (
     {% for source_schema, table_name, sheet_name in sources_list %}
     select
@@ -44,4 +55,5 @@ select
 from combined
 where sale_date is not null
   and sku is not null
+{% endif %}
 {% endmacro %}
