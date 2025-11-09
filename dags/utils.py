@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 from datetime import timedelta
 from pathlib import Path
 import shutil
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL
+from sqlalchemy.engine import URL, Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from airflow.datasets import Dataset
@@ -592,9 +593,178 @@ def load_forecast_to_postgres(
 # Objective 2: C2 adoption helpers
 # ---------------------------------------------------------------------------
 
+SUBSCRIPTION_KEYWORDS: List[str] = [
+    r"\bC2\b",
+    r"\bC2 ",
+    r"C2-",
+    r"C2_",
+    r"Active Insight",
+    r"ActiveProtect",
+    r"\bC2 Storage\b",
+    r"\bC2 Backup\b",
+    r"\bC2 Password\b",
+    r"\bC2 Transfer\b",
+    r"\bC2 Object\b",
+]
+SUBSCRIPTION_PATTERN = re.compile("|".join(SUBSCRIPTION_KEYWORDS), flags=re.IGNORECASE)
+
+
+def _family_from_product(product_name: str) -> str:
+    text = (product_name or "").lower()
+    if "active insight" in text:
+        return "Active Insight"
+    if "activeprotect" in text or "active protect" in text:
+        return "ActiveProtect"
+    if "c2 password" in text:
+        return "C2 Password"
+    if "c2 backup" in text:
+        return "C2 Backup"
+    if "c2 storage" in text or ("object" in text and "c2" in text):
+        return "C2 Storage/Object"
+    if "c2 transfer" in text:
+        return "C2 Transfer"
+    if "c2" in text:
+        return "C2 (Other)"
+    return "Other"
+
+
+def _parse_subcat(value: str) -> tuple[str, str, str]:
+    tokens = str(value or "").upper().split("-")
+    tokens += ["UNKNOWN"] * max(0, 4 - len(tokens))
+    return tokens[1], tokens[2], tokens[3]
+
+
+def _ensure_numeric(series: pd.Series, default: float = 0.0) -> pd.Series:
+    return pd.to_numeric(series, errors="coerce").fillna(default)
+
+
+def _calculate_logo_stats(paid: pd.DataFrame) -> pd.DataFrame:
+    if paid.empty or paid["YearMonth"].nunique() < 2:
+        return pd.DataFrame()
+
+    pivot = (
+        paid.assign(active=lambda d: d["usd_adjusted_total"] > 0)
+        .pivot_table(
+            index=["Customer", "Family"],
+            columns="YearMonth",
+            values="active",
+            aggfunc="max",
+        )
+        .fillna(False)
+        .astype(bool)
+    )
+    months = list(pivot.columns)
+    rows = []
+    for idx in range(1, len(months)):
+        prev_month, current_month = months[idx - 1], months[idx]
+        prev_active = pivot[prev_month]
+        cur_active = pivot[current_month]
+        rows.append(
+            {
+                "snapshot_month": current_month,
+                "new_logos": int((~prev_active & cur_active).sum()),
+                "churned_logos": int((prev_active & ~cur_active).sum()),
+                "net_logos": int((cur_active.astype(int) - prev_active.astype(int)).sum()),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _calculate_revenue_churn(paid: pd.DataFrame) -> pd.DataFrame:
+    if paid.empty or paid["YearMonth"].nunique() < 2:
+        return pd.DataFrame()
+
+    rev = paid.pivot_table(
+        index=["Customer", "Family"],
+        columns="YearMonth",
+        values="usd_adjusted_total",
+        aggfunc="sum",
+    ).fillna(0.0)
+    months = list(rev.columns)
+    rows = []
+    for idx in range(1, len(months)):
+        prev_month, current_month = months[idx - 1], months[idx]
+        prev_rev = rev[prev_month]
+        cur_rev = rev[current_month]
+        kept = np.minimum(prev_rev, cur_rev).sum()
+        expansion = (cur_rev - prev_rev.clip(upper=cur_rev)).clip(lower=0).sum()
+        contraction = (prev_rev - cur_rev.clip(upper=prev_rev)).clip(lower=0).sum()
+        churn = (prev_rev - cur_rev).clip(lower=0).sum()
+        rows.append(
+            {
+                "snapshot_month": current_month,
+                "kept_revenue": kept,
+                "expansion_revenue": expansion,
+                "contraction_revenue": contraction,
+                "churned_revenue": churn,
+                "net_change": cur_rev.sum() - prev_rev.sum(),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _calculate_retention(paid: pd.DataFrame) -> pd.DataFrame:
+    if paid.empty:
+        return pd.DataFrame()
+
+    paid = paid.copy()
+    paid["YearMonth"] = paid["YearMonth"].dt.to_period("M").dt.to_timestamp()
+    first_month = (
+        paid[paid["usd_adjusted_total"] > 0]
+        .groupby(["Customer", "Family"])["YearMonth"]
+        .min()
+        .rename("Cohort")
+    )
+    if first_month.empty:
+        return pd.DataFrame()
+
+    cohort_df = paid.merge(first_month, on=["Customer", "Family"])
+    cohort_period = cohort_df["Cohort"].dt.to_period("M").astype("int64")
+    year_month_period = cohort_df["YearMonth"].dt.to_period("M").astype("int64")
+    cohort_df["MonthsSinceStart"] = (year_month_period - cohort_period).astype(int)
+    retention = (
+        cohort_df[cohort_df["usd_adjusted_total"] > 0]
+        .groupby(["Family", "MonthsSinceStart"])
+        .agg(active_logos=("Customer", "nunique"))
+        .reset_index()
+    )
+    return retention
+
+
+def _persist_dataframe(
+    engine: Engine,
+    table_name: str,
+    create_stmt: str,
+    frame: Optional[pd.DataFrame],
+    schema: str = "analytics",
+) -> None:
+    if frame is None or frame.empty:
+        LOG.warning("No rows to persist for %s.%s; skipping.", schema, table_name)
+        return
+
+    frame = frame.copy()
+    frame.replace({np.nan: None}, inplace=True)
+    create_schema_stmt = text(f"create schema if not exists {schema}")
+    create_table_stmt = text(create_stmt)
+    truncate_stmt = text(f"truncate table {schema}.{table_name}")
+
+    with engine.begin() as conn:
+        conn.execute(create_schema_stmt)
+        conn.execute(create_table_stmt)
+        conn.execute(truncate_stmt)
+        frame.to_sql(
+            table_name,
+            conn,
+            schema=schema,
+            if_exists="append",
+            index=False,
+            method="multi",
+        )
+    LOG.info("Loaded %d rows into %s.%s", len(frame), schema, table_name)
+
 
 def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
-    """Build the C2 adoption scorecard directly from the cleaned sale-out parquet."""
+    """Build the C2 adoption scorecard and companion marts."""
 
     repo = repo_root()
     parquet_path = repo / "data" / "processed" / "synosales_cleaned.parquet"
@@ -607,53 +777,38 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
         LOG.warning("Cleaned sales parquet is empty; skipping C2 scorecard build.")
         return
 
-    if "sub_cat" not in raw.columns:
-        LOG.warning("Cleaned sales data missing 'sub_cat'; cannot derive C2 cohort.")
-        return
-
-    prefix = os.environ.get("C2_SUBCAT_PREFIX", "C2-").upper()
-    c2_sales = raw[
-        raw["sub_cat"]
-        .fillna("")
-        .astype(str)
-        .str.upper()
-        .str.startswith(prefix)
-    ].copy()
-
-    if c2_sales.empty:
-        LOG.warning("No records matched prefix %s; skipping C2 scorecard build.", prefix)
-        return
-
-    c2_sales["InvDate"] = pd.to_datetime(c2_sales.get("InvDate"), errors="coerce")
-    c2_sales = c2_sales.dropna(subset=["InvDate"])
-    if c2_sales.empty:
+    raw.columns = raw.columns.str.strip()
+    raw["InvDate"] = pd.to_datetime(raw.get("InvDate"), errors="coerce")
+    raw = raw.dropna(subset=["InvDate"]).copy()
+    if raw.empty:
         LOG.warning("C2 sales cohort has no valid invoice dates; skipping scorecard.")
         return
 
-    c2_sales["Customer"] = c2_sales.get("Customer").fillna("UNSPECIFIED").astype(str)
-    c2_sales["Region"] = c2_sales.get("Region").fillna("Unknown").astype(str)
-    c2_sales["PI"] = c2_sales.get("PI").fillna("UNSPECIFIED").astype(str)
+    for column in ["Product", "Customer", "Region", "Country", "Type", "sub_cat", "PI"]:
+        raw[column] = raw.get(column, pd.Series(dtype="object")).fillna("").astype(str)
 
-    c2_sales["Quantity"] = pd.to_numeric(c2_sales.get("Quantity"), errors="coerce").fillna(0.0)
-    c2_sales["usd_adjusted_total"] = pd.to_numeric(
-        c2_sales.get("usd_adjusted_total"), errors="coerce"
-    ).fillna(0.0)
+    raw["usd_adjusted_total"] = _ensure_numeric(raw.get("usd_adjusted_total"))
+    raw["usd_adjusted_price"] = _ensure_numeric(raw.get("usd_adjusted_price"))
+    raw["Quantity"] = _ensure_numeric(raw.get("Quantity"), default=0.0)
+    raw["YearMonth"] = raw["InvDate"].dt.to_period("M").dt.to_timestamp("M")
 
-    def parse_components(value: str) -> tuple[str, str, str]:
-        tokens = str(value or "").upper().split("-")
-        tokens += ["UNKNOWN"] * max(0, 4 - len(tokens))
-        return tokens[1], tokens[2], tokens[3]
+    prefix = os.environ.get("C2_SUBCAT_PREFIX", "C2-").upper()
+    subcat_mask = raw["sub_cat"].str.upper().str.startswith(prefix)
+    keyword_mask = raw["Product"].apply(lambda value: bool(SUBSCRIPTION_PATTERN.search(value)))
+    subs = raw[subcat_mask | keyword_mask].copy()
+    if subs.empty:
+        LOG.warning("No records matched subscription heuristics; skipping scorecard build.")
+        return
 
-    components = c2_sales["sub_cat"].apply(parse_components)
-    c2_sales["service_family"] = components.apply(lambda tpl: tpl[0] or "UNKNOWN")
-    c2_sales["capacity_band"] = components.apply(lambda tpl: tpl[1] or "UNKNOWN")
-    c2_sales["plan_variant"] = components.apply(lambda tpl: tpl[2] or "UNKNOWN")
-    c2_sales["snapshot_month"] = (
-        c2_sales["InvDate"].dt.to_period("M").dt.to_timestamp("M")
-    )
+    subs["Family"] = subs["Product"].apply(_family_from_product)
+    components = subs["sub_cat"].apply(_parse_subcat)
+    subs["service_family"] = components.apply(lambda tpl: tpl[0] or "UNKNOWN")
+    subs["capacity_band"] = components.apply(lambda tpl: tpl[1] or "UNKNOWN")
+    subs["plan_variant"] = components.apply(lambda tpl: tpl[2] or "UNKNOWN")
+    subs["snapshot_month"] = subs["YearMonth"]
 
     revenue_by_customer = (
-        c2_sales.groupby("Customer", dropna=False)["usd_adjusted_total"]
+        subs.groupby("Customer", dropna=False)["usd_adjusted_total"]
         .sum()
         .reset_index(name="total_revenue")
     )
@@ -673,12 +828,12 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
 
         revenue_by_customer["customer_tier"] = revenue_by_customer["revenue_rank"].apply(label_tier)
         tier_map = revenue_by_customer.set_index("Customer")["customer_tier"]
-        c2_sales["customer_tier"] = c2_sales["Customer"].map(tier_map).fillna("Tier 3 - Long Tail")
+        subs["customer_tier"] = subs["Customer"].map(tier_map).fillna("Tier 3 - Long Tail")
     else:
-        c2_sales["customer_tier"] = "Tier 3 - Long Tail"
+        subs["customer_tier"] = "Tier 3 - Long Tail"
 
     grouped = (
-        c2_sales.groupby(
+        subs.groupby(
             ["snapshot_month", "service_family", "plan_variant", "Region", "customer_tier"],
             dropna=False,
         )
@@ -689,23 +844,16 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
             total_quantity=("Quantity", "sum"),
         )
         .reset_index()
+        .rename(columns={"Region": "region"})
     )
 
-    if grouped.empty:
-        LOG.warning("Aggregated C2 scorecard has no rows; skipping load.")
-        return
-
-    grouped.rename(columns={"Region": "region"}, inplace=True)
     grouped["sku"] = "ALL"
-    grouped["avg_seats"] = (
-        grouped["total_quantity"] / grouped["active_subscriptions"].replace(0, np.nan)
-    )
+    grouped["avg_seats"] = grouped["total_quantity"] / grouped["active_subscriptions"].replace(0, np.nan)
     grouped["snapshot_month"] = pd.to_datetime(grouped["snapshot_month"], errors="coerce").dt.date
     grouped["service_family"] = grouped["service_family"].fillna("UNKNOWN")
     grouped["plan_variant"] = grouped["plan_variant"].fillna("UNKNOWN")
     grouped["region"] = grouped["region"].fillna("Unknown")
     grouped["customer_tier"] = grouped["customer_tier"].fillna("Tier 3 - Long Tail")
-
     grouped = grouped[
         [
             "snapshot_month",
@@ -721,15 +869,79 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
             "avg_seats",
         ]
     ]
-
     grouped["active_subscriptions"] = grouped["active_subscriptions"].astype(int)
     grouped["new_subscriptions"] = grouped["new_subscriptions"].astype(int)
     grouped["mrr_usd"] = grouped["mrr_usd"].astype(float)
     grouped["total_quantity"] = grouped["total_quantity"].astype(float)
     grouped["avg_seats"] = grouped["avg_seats"].astype(float)
     grouped["created_at"] = pd.Timestamp.utcnow()
-    grouped = grouped.sort_values(["snapshot_month", "service_family", "region"])
-    grouped.replace({np.nan: None}, inplace=True)
+
+    monthly = (
+        subs.groupby(["YearMonth", "Family"])
+        .agg(
+            mrr_usd=("usd_adjusted_total", "sum"),
+            active_subscriptions=("Customer", "nunique"),
+        )
+        .reset_index()
+    )
+    monthly["arr_usd"] = monthly["mrr_usd"] * 12
+    monthly["snapshot_month"] = pd.to_datetime(monthly["YearMonth"]).dt.date
+    monthly_rollup = monthly[
+        ["snapshot_month", "Family", "mrr_usd", "arr_usd", "active_subscriptions"]
+    ].rename(columns={"Family": "service_family"})
+    monthly_rollup["active_subscriptions"] = monthly_rollup["active_subscriptions"].astype(int)
+
+    total_monthly = (
+        monthly.groupby("YearMonth")
+        .agg(
+            mrr_total=("mrr_usd", "sum"),
+            arr_total=("arr_usd", "sum"),
+            active_subs_total=("active_subscriptions", "sum"),
+        )
+        .reset_index()
+    )
+    total_monthly["snapshot_month"] = pd.to_datetime(total_monthly["YearMonth"]).dt.date
+    total_monthly = total_monthly[
+        ["snapshot_month", "mrr_total", "arr_total", "active_subs_total"]
+    ]
+    total_monthly["active_subs_total"] = total_monthly["active_subs_total"].astype(int)
+
+    paid = (
+        subs.groupby(["YearMonth", "Customer", "Family"])["usd_adjusted_total"]
+        .sum()
+        .reset_index()
+    )
+    logo_stats = _calculate_logo_stats(paid)
+    if not logo_stats.empty:
+        logo_stats["snapshot_month"] = pd.to_datetime(logo_stats["snapshot_month"]).dt.date
+        logo_stats[["new_logos", "churned_logos", "net_logos"]] = logo_stats[
+            ["new_logos", "churned_logos", "net_logos"]
+        ].astype(int)
+
+    revenue_churn = _calculate_revenue_churn(paid)
+    if not revenue_churn.empty:
+        revenue_churn["snapshot_month"] = pd.to_datetime(revenue_churn["snapshot_month"]).dt.date
+
+    retention = _calculate_retention(paid)
+    if not retention.empty:
+        retention = retention.rename(
+            columns={"Family": "service_family", "MonthsSinceStart": "months_since_start"}
+        )
+        retention["months_since_start"] = retention["months_since_start"].astype(int)
+
+    family_summary = (
+        subs.groupby("Family")["usd_adjusted_total"]
+        .sum()
+        .reset_index()
+        .rename(columns={"Family": "service_family", "usd_adjusted_total": "revenue_usd"})
+    )
+    country_subs = (
+        subs.groupby("Country")["usd_adjusted_total"]
+        .sum()
+        .reset_index()
+        .rename(columns={"Country": "country", "usd_adjusted_total": "revenue_usd"})
+        .sort_values("revenue_usd", ascending=False)
+    )
 
     connection_url = URL.create(
         drivername="postgresql+psycopg2",
@@ -741,9 +953,7 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
     )
     engine = create_engine(connection_url)
 
-    create_schema_stmt = text("create schema if not exists analytics")
-    create_table_stmt = text(
-        """
+    scorecard_create = """
         create table if not exists analytics.c2_adoption_scorecard (
             snapshot_month date,
             service_family text,
@@ -758,41 +968,82 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
             avg_seats numeric,
             created_at timestamptz not null
         )
-        """
-    )
+    """
+    _persist_dataframe(engine, "c2_adoption_scorecard", scorecard_create, grouped)
 
-    truncate_stmt = text("truncate table analytics.c2_adoption_scorecard")
-    migrate_arr_column_stmt = text(
-        """
-        alter table analytics.c2_adoption_scorecard
-        rename column arr_usd to mrr_usd
-        """
-    )
-
-    LOG.info("Loading %d rows into analytics.c2_adoption_scorecard", len(grouped))
-    with engine.begin() as conn:
-        conn.execute(create_schema_stmt)
-        conn.execute(create_table_stmt)
-        try:
-            conn.execute(migrate_arr_column_stmt)
-        except SQLAlchemyError:
-            LOG.debug("mrr_usd column already present; no rename needed")
-        conn.execute(truncate_stmt)
-        grouped.to_sql(
-            "c2_adoption_scorecard",
-            conn,
-            schema="analytics",
-            if_exists="append",
-            index=False,
-            method="multi",
+    monthly_create = """
+        create table if not exists analytics.c2_subscription_monthly (
+            snapshot_month date,
+            service_family text,
+            mrr_usd numeric,
+            arr_usd numeric,
+            active_subscriptions integer
         )
+    """
+    _persist_dataframe(engine, "c2_subscription_monthly", monthly_create, monthly_rollup)
+
+    total_create = """
+        create table if not exists analytics.c2_subscription_totals (
+            snapshot_month date,
+            mrr_total numeric,
+            arr_total numeric,
+            active_subs_total integer
+        )
+    """
+    _persist_dataframe(engine, "c2_subscription_totals", total_create, total_monthly)
+
+    logo_create = """
+        create table if not exists analytics.c2_logo_churn (
+            snapshot_month date,
+            new_logos integer,
+            churned_logos integer,
+            net_logos integer
+        )
+    """
+    _persist_dataframe(engine, "c2_logo_churn", logo_create, logo_stats)
+
+    revenue_create = """
+        create table if not exists analytics.c2_revenue_churn (
+            snapshot_month date,
+            kept_revenue numeric,
+            expansion_revenue numeric,
+            contraction_revenue numeric,
+            churned_revenue numeric,
+            net_change numeric
+        )
+    """
+    _persist_dataframe(engine, "c2_revenue_churn", revenue_create, revenue_churn)
+
+    retention_create = """
+        create table if not exists analytics.c2_retention (
+            service_family text,
+            months_since_start integer,
+            active_logos integer
+        )
+    """
+    _persist_dataframe(engine, "c2_retention", retention_create, retention)
+
+    family_create = """
+        create table if not exists analytics.c2_family_summary (
+            service_family text,
+            revenue_usd numeric
+        )
+    """
+    _persist_dataframe(engine, "c2_family_summary", family_create, family_summary)
+
+    country_create = """
+        create table if not exists analytics.c2_country_summary (
+            country text,
+            revenue_usd numeric
+        )
+    """
+    _persist_dataframe(engine, "c2_country_summary", country_create, country_subs)
 
 
 def export_c2_scorecard(**_: Dict[str, Any]) -> None:
-    """Dump the C2 adoption scorecard table to a CSV artefact."""
+    """Dump the C2 adoption scorecard tables to CSV artefacts."""
     repo = repo_root()
     output_dir = ensure_directory(repo / "data" / "processed" / "c2")
-    output_path = output_dir / "c2_adoption_scorecard.csv"
 
     connection_url = URL.create(
         drivername="postgresql+psycopg2",
@@ -804,17 +1055,28 @@ def export_c2_scorecard(**_: Dict[str, Any]) -> None:
     )
     engine = create_engine(connection_url)
 
-    query = text("select * from analytics.c2_adoption_scorecard order by snapshot_month, service_family, region")
-    LOG.info("Exporting C2 adoption scorecard to %s", output_path)
-    try:
-        with engine.begin() as conn:
-            df = pd.read_sql(query, conn)
-    except Exception as exc:  # pragma: no cover - defensive for missing table
-        LOG.warning("Unable to export C2 adoption scorecard: %s", exc)
-        return
+    targets = {
+        "c2_adoption_scorecard.csv": "select * from analytics.c2_adoption_scorecard order by snapshot_month, service_family, region",
+        "c2_subscription_monthly.csv": "select * from analytics.c2_subscription_monthly order by snapshot_month, service_family",
+        "c2_subscription_totals.csv": "select * from analytics.c2_subscription_totals order by snapshot_month",
+        "c2_logo_churn.csv": "select * from analytics.c2_logo_churn order by snapshot_month",
+        "c2_revenue_churn.csv": "select * from analytics.c2_revenue_churn order by snapshot_month",
+        "c2_retention.csv": "select * from analytics.c2_retention order by service_family, months_since_start",
+        "c2_family_summary.csv": "select * from analytics.c2_family_summary order by revenue_usd desc",
+        "c2_country_summary.csv": "select * from analytics.c2_country_summary order by revenue_usd desc",
+    }
 
-    df.to_csv(output_path, index=False)
-    LOG.info("C2 adoption scorecard export complete (%d rows)", len(df))
+    with engine.begin() as conn:
+        for filename, query in targets.items():
+            output_path = output_dir / filename
+            LOG.info("Exporting %s", output_path.name)
+            try:
+                df = pd.read_sql(text(query), conn)
+            except Exception as exc:  # pragma: no cover - defensive
+                LOG.warning("Unable to export %s: %s", filename, exc)
+                continue
+            df.to_csv(output_path, index=False)
+            LOG.info("Wrote %s (%d rows)", output_path, len(df))
 
 
 # ---------------------------------------------------------------------------
