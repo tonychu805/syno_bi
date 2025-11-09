@@ -5,3 +5,8 @@ psycopg2-binary>=2.9,<3.0
 dbt-core
 dbt-postgres
 statsmodels==0.14.1
+matplotlib
+sklearn
+numpy
+xgboost
+caas_jupyter_tools

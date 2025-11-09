@@ -14,7 +14,7 @@ Build, evaluate, and operationalize forecasting models that deliver next-quarter
 
 ### Key Artifacts
 - `analytics.forecast_overall` (Objective 1): `forecast_run_id`, `cohort`, `model_name`, `model_version`, `sku`, `channel`, `sale_month`, `forecast_date`, `forecast_quantity`, `forecast_revenue`, `forecast_revenue_lower`, `forecast_revenue_upper`, `actual_quantity`, `actual_revenue`, `product_name`, `product_type`, `product_subcategory`, `created_at`.
-- `analytics.c2_adoption_scorecard` (Objective 2): `snapshot_month`, `service_family`, `plan_variant`, `region`, `customer_tier`, `sku`, `active_subscriptions`, `new_subscriptions`, `arr_usd`, `total_quantity`, `avg_seats`.
+- `analytics.c2_adoption_scorecard` (Objective 2): `snapshot_month`, `service_family`, `plan_variant`, `region`, `customer_tier`, `sku`, `active_subscriptions`, `new_subscriptions`, `mrr_usd`, `total_quantity`, `avg_seats`.
 - `analytics.activation_storylines` (Objective 3): `snapshot_month`, `region`, `segment`, `actual_revenue`, `forecast_revenue`, `variance_pct`, `inventory_weeks_cover`, `market_index_score`, `activation_score`, `recommended_action`, `confidence_note`.
 
 ## Implementation Steps

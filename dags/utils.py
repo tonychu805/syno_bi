@@ -685,7 +685,7 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
         .agg(
             active_subscriptions=("Customer", "nunique"),
             new_subscriptions=("PI", "nunique"),
-            arr_usd=("usd_adjusted_total", "sum"),
+            mrr_usd=("usd_adjusted_total", "sum"),
             total_quantity=("Quantity", "sum"),
         )
         .reset_index()
@@ -716,7 +716,7 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
             "sku",
             "active_subscriptions",
             "new_subscriptions",
-            "arr_usd",
+            "mrr_usd",
             "total_quantity",
             "avg_seats",
         ]
@@ -724,7 +724,7 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
 
     grouped["active_subscriptions"] = grouped["active_subscriptions"].astype(int)
     grouped["new_subscriptions"] = grouped["new_subscriptions"].astype(int)
-    grouped["arr_usd"] = grouped["arr_usd"].astype(float)
+    grouped["mrr_usd"] = grouped["mrr_usd"].astype(float)
     grouped["total_quantity"] = grouped["total_quantity"].astype(float)
     grouped["avg_seats"] = grouped["avg_seats"].astype(float)
     grouped["created_at"] = pd.Timestamp.utcnow()
@@ -753,7 +753,7 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
             sku text,
             active_subscriptions integer,
             new_subscriptions integer,
-            arr_usd numeric,
+            mrr_usd numeric,
             total_quantity numeric,
             avg_seats numeric,
             created_at timestamptz not null
@@ -762,11 +762,21 @@ def build_c2_adoption_scorecard(**_: Dict[str, Any]) -> None:
     )
 
     truncate_stmt = text("truncate table analytics.c2_adoption_scorecard")
+    migrate_arr_column_stmt = text(
+        """
+        alter table analytics.c2_adoption_scorecard
+        rename column arr_usd to mrr_usd
+        """
+    )
 
     LOG.info("Loading %d rows into analytics.c2_adoption_scorecard", len(grouped))
     with engine.begin() as conn:
         conn.execute(create_schema_stmt)
         conn.execute(create_table_stmt)
+        try:
+            conn.execute(migrate_arr_column_stmt)
+        except SQLAlchemyError:
+            LOG.debug("mrr_usd column already present; no rename needed")
         conn.execute(truncate_stmt)
         grouped.to_sql(
             "c2_adoption_scorecard",

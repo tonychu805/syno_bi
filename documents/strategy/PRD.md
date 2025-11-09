@@ -27,7 +27,7 @@ The Synology Global BI Platform is a strategic initiative designed to unify disp
    - Package findings into Metabase narratives and sandbox notebooks that feed the broader commercial playbooks for C2 growth.  
    - **Primary warehouse artifact:** `analytics.c2_adoption_scorecard`  
      (`snapshot_month`, `service_family`, `plan_variant`, `region`, `customer_tier`,  
-     `sku`, `active_subscriptions`, `new_subscriptions`, `arr_usd`, `total_quantity`,  
+    `sku`, `active_subscriptions`, `new_subscriptions`, `mrr_usd`, `total_quantity`,  
      `avg_seats`).
 
 3. **Consumer Trend & Commercial Activation**  
