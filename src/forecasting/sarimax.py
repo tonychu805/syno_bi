@@ -156,9 +156,7 @@ def train_sarimax_forecast(
         quantity_history,
         monthly_aggregates,
         holdout_aggregates,
-    ) = _prepare_monthly_series(
-        working, holdout_start=holdout_start
-    )
+    ) = _prepare_monthly_series(working, holdout_start=holdout_start)
 
     # Revenue SARIMAX fit
     revenue_model = _fit_sarimax(revenue_history)
@@ -194,12 +192,9 @@ def train_sarimax_forecast(
         }
     )
 
-    combined = (
-        monthly_aggregates.rename(
-            columns={"revenue": "actual_revenue", "quantity": "actual_quantity"}
-        )
-        .copy()
-    )
+    combined = monthly_aggregates.rename(
+        columns={"revenue": "actual_revenue", "quantity": "actual_quantity"}
+    ).copy()
     combined_index = combined.index.union(forecast_index)
     combined = combined.reindex(combined_index).sort_index()
     combined["forecast_quantity"] = np.nan
@@ -209,8 +204,12 @@ def train_sarimax_forecast(
     combined["forecast_date"] = combined.index
     combined.loc[forecast_index, "forecast_quantity"] = quantity_pred.values
     combined.loc[forecast_index, "forecast_revenue"] = revenue_mean.values
-    combined.loc[forecast_index, "forecast_revenue_lower"] = revenue_conf.iloc[:, 0].values
-    combined.loc[forecast_index, "forecast_revenue_upper"] = revenue_conf.iloc[:, 1].values
+    combined.loc[forecast_index, "forecast_revenue_lower"] = revenue_conf.iloc[
+        :, 0
+    ].values
+    combined.loc[forecast_index, "forecast_revenue_upper"] = revenue_conf.iloc[
+        :, 1
+    ].values
     combined["channel"] = cohort
     combined["sku"] = f"{cohort.upper()}_ALL"
     combined.index.name = "sale_month"
