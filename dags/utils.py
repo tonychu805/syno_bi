@@ -387,10 +387,10 @@ def load_forecast_to_postgres(
     df["forecast_date"] = pd.to_datetime(df.get("forecast_date"), errors="coerce")
     df["forecast_quantity"] = pd.to_numeric(
         df.get("forecast_quantity"), errors="coerce"
-    )
+    ).clip(lower=0)
     df["forecast_revenue"] = pd.to_numeric(
         df.get("forecast_revenue"), errors="coerce"
-    )
+    ).clip(lower=0)
     for bound_column in ("forecast_revenue_lower", "forecast_revenue_upper"):
         if bound_column not in df.columns:
             df[bound_column] = pd.NA
