@@ -133,6 +133,8 @@ jobs:
         run: |
           ssh -p "$NAS_SSH_PORT" "$NAS_USER@$NAS_HOST" \
             "export PATH=/usr/local/bin:\\$PATH && \
+             export DOCKER_CLIENT_TIMEOUT=600 && \
+             export COMPOSE_HTTP_TIMEOUT=600 && \
              cd ${NAS_PROJECT_PATH:-/volume1/docker/syno_bi/repo} && \
              git fetch origin main && \
              git checkout main && \
