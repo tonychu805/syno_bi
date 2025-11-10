@@ -424,7 +424,7 @@ def load_forecast_to_postgres(
             cleaned["sku"] = sku_series.fillna(product_series).fillna("UNSPECIFIED")
             revenue_field = "usd_adjusted_total" if "usd_adjusted_total" in cleaned.columns else "Total"
             aggregated = (
-                cleaned.groupby(["sale_month", "channel", "sku"], dropna=False)
+                cleaned.groupby(["sale_month", "sku"], dropna=False)
                 .agg(
                     actual_quantity=("Quantity", "sum"),
                     actual_revenue=(revenue_field, "sum"),
@@ -456,10 +456,10 @@ def load_forecast_to_postgres(
             ]
             if available_columns:
                 df = df.merge(
-                    actual_columns[["sale_month", "channel", "sku", *available_columns]],
+                    actual_columns[["sale_month", "sku", *available_columns]],
                     how="left",
-                    left_on=["sale_month", "channel", "sku"],
-                    right_on=["sale_month", "channel", "sku"],
+                    left_on=["sale_month", "sku"],
+                    right_on=["sale_month", "sku"],
                 )
     for fallback_column in required_actual_columns:
         if fallback_column not in df.columns:
