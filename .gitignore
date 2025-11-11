@@ -38,6 +38,7 @@ htmlcov/
 
 
 # Others
+AGENTS.md
 data/archive
 data/processed
 @eaDir/
