@@ -34,6 +34,9 @@ DEFAULT_PRESERVED_COLUMNS: tuple[str, ...] = (
     "Year",
     "Region",
 )
+MONTHLY_FREQ = "M"
+SEASONAL_PERIOD = 12
+MIN_SEASONAL_HISTORY_MONTHS = SEASONAL_PERIOD * 2
 
 
 LOG = logging.getLogger(__name__)
@@ -82,6 +85,7 @@ def _prepare_monthly_series(
         )
         .sort_index()
     )
+    monthly = monthly.asfreq(MONTHLY_FREQ, fill_value=0.0)
 
     if monthly.empty:
         raise ValueError("No monthly aggregates available for SARIMAX training.")
@@ -100,11 +104,28 @@ def _prepare_monthly_series(
     )
 
 
+def _prepare_training_series(series: pd.Series) -> pd.Series:
+    """Coerce numeric type and ensure the series is finite for SARIMAX."""
+    cleaned = (
+        series.astype(float)
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+    )
+    if cleaned.empty:
+        raise ValueError("Series contains no finite observations for SARIMAX.")
+    return cleaned
+
+
 def _fit_sarimax(series: pd.Series) -> SARIMAX:
+    seasonal_order = (
+        (0, 0, 0, SEASONAL_PERIOD)
+        if len(series) < MIN_SEASONAL_HISTORY_MONTHS
+        else (1, 1, 1, SEASONAL_PERIOD)
+    )
     return SARIMAX(
         series,
         order=(1, 1, 1),
-        seasonal_order=(1, 1, 1, 12),
+        seasonal_order=seasonal_order,
         enforce_stationarity=False,
         enforce_invertibility=False,
     )
@@ -157,6 +178,8 @@ def train_sarimax_forecast(
         monthly_aggregates,
         holdout_aggregates,
     ) = _prepare_monthly_series(working, holdout_start=holdout_start)
+    revenue_history = _prepare_training_series(revenue_history)
+    quantity_history = _prepare_training_series(quantity_history)
 
     # Revenue SARIMAX fit
     revenue_model = _fit_sarimax(revenue_history)
